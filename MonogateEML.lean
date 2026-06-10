@@ -12,6 +12,7 @@ import MonogateEML.ModelAudit
 import MonogateEML.MulLowerBound
 import MonogateEML.Runtime
 import MonogateEML.SelfMapConjugacy
+import MonogateEML.SinNotInEMLDepthBounds
 import MonogateEML.SubLowerBound
 import MonogateEML.Tactics
 import MonogateEML.Universality
