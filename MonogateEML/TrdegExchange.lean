@@ -37,8 +37,10 @@ exchange over any base set `S` (the form the finite-bound induction consumes), m
 
 ## Remaining plan toward the finite bound + (3a)
 
-1. **Relativise** `isAlgebraic_adjoin_singleton_exchange` over a base set `S` via the
-   `adjoin`-tower isomorphism (`Algebra.adjoin_adjoin_...` / `restrictScalars`).
+1. **Relativise** `isAlgebraic_adjoin_singleton_exchange` over a base set `S`.
+   **DONE — for free** (`isAlgebraic_adjoin_singleton_exchange_over_adjoin`, below): the
+   exchange is generic in the base `CommRing`, so instantiating it at `↥(adjoin R S)`
+   carries the base-set form with no `restrictScalars` burden *at the exchange site*.
 2. **The finite bound** (target below) by exchange induction on a finite spanning family
    (van der Waerden): maintain "A is algebraic over `R⟨v₀,…,v_{r-1}, w_r,…⟩`"; each new
    `vᵣ`, transcendental over the `v`-part but algebraic over the whole, forces (via the
@@ -48,13 +50,21 @@ exchange over any base set `S` (the form the finite-bound induction consumes), m
            (hv : AlgebraicIndependent R v) (hw : Algebra.IsAlgebraic (adjoin R (range w)) A) :
            #ι ≤ #κ
 
+   Remaining shape (the algebraic content is discharged; this is bookkeeping over the
+   exchange): a `replace` step "given `A` algebraic over `R⟨range w⟩` and `a`
+   transcendental over `R`, some `wⱼ` is displaceable — `∃ j, A` algebraic over
+   `R⟨insert a (range (w ∘ j.succAbove))⟩`" (finite pigeonhole on the exchange), then
+   induction on the two family sizes. Tower rewrites where the mixed set is threaded:
+   `Algebra.adjoin_adjoin_of_tower`, `Algebra.adjoin_union`.
 3. **(3a) corollary + discharge** `algDep_of_bounded_trdeg`'s `H`, closing
    `chain_algebraic_dependence` (mod step 3b, the analytic-function domain for the exps).
 
 ## Status (2026-07-10)
 
-Step "crux" (the exchange lemma) **PROVEN and verified** below. Steps 1–3 are the
-remaining bricks; each commits only when `sorry`-free.
+Step "crux" (the exchange lemma) **PROVEN and verified** below, and step 1 (base-set
+relativisation) follows **for free** (both `sorryAx`-free). Steps 2–3 remain; the hard
+algebraic content is now done, leaving a bookkeeping induction over the proven exchange.
+Each commits only when `sorry`-free.
 -/
 
 open Algebra
