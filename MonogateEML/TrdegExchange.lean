@@ -72,53 +72,32 @@ exchange over any base set `S` (the form the finite-bound induction consumes), m
 3. **(3a) corollary + discharge** `algDep_of_bounded_trdeg`'s `H`, closing
    `chain_algebraic_dependence` (mod step 3b, the analytic-function domain for the exps).
 
-## Status (2026-07-10)
+## Status (2026-07-10) — the finite bound is COMPLETE
 
-The entire **algebraic content is proven and verified `sorryAx`-free**:
-`isAlgebraic_adjoin_singleton_exchange` (crux) → `…_over_adjoin` (relativisation, free) →
-`isAlgebraic_adjoin_insert_replace` (the swap) → `exists_displaceable` (the pigeonhole that
-picks which generator each independent element displaces). What remains for step 2 is the
-final assembly, which contains no new algebra:
+`card_le_of_isAlgebraic_span` (bottom of file) is **proven and verified `sorryAx`-free**: an
+algebraically independent `v : Fin p → E` is bounded by any spanning finset,
+`p ≤ T.card` (E algebraic over `F(T)`). The full chain, every step `sorryAx`-free:
 
-  * **`respan`** — from "`E` algebraic over `F⟨T⟩`" and "`t` algebraic over `F⟨T'⟩`" (with
-    `T' = insert vᵣ (T.erase t)`), conclude "`E` algebraic over `F⟨T'⟩`". Route through the
-    join `B := adjoin F (↑T ∪ {vᵣ})`: `F⟨T'⟩ ≤ B` and `adjoin F ↑T ≤ B` (`adjoin_mono`),
-    `E` algebraic over `B` (`Algebra.IsAlgebraic.tower_top`), `B` algebraic over `F⟨T'⟩`
-    (adjoin of algebraic generators), then `Algebra.IsAlgebraic.trans`.
+  * `isAlgebraic_adjoin_singleton_exchange` (crux, slick contrapositive) → `…_over_adjoin`
+    (base-set relativisation, free) → `isAlgebraic_adjoin_insert_replace` (the swap).
+  * `exists_displaceable` — the pigeonhole picking which generator each new element displaces.
+  * `isAlgebraic_algebraAdjoin_iff_intermediateField` — the **subring ↔ subfield bridge**, the
+    one piece Mathlib lacked, built by constructing
+    `IsFractionRing ↥(Algebra.adjoin F X) ↥(IntermediateField.adjoin F X)` from scratch
+    (`IntermediateField.mem_adjoin_iff` gives the surjectivity field). This is why the respan,
+    which needs `Algebra.IsAlgebraic.trans` over *fields*, can consume the exchange's
+    *subring*-level output.
+  * `respan` — the swapped generating set still spans (single-element join `K⟮t⟯`,
+    `Algebra.IsAlgebraic.trans`).
+  * `transcendental_last_of_algebraicIndependent` — new element transcendental over the placed
+    prefix (`finSuccEquivLast` + `option_iff`).
+  * The van der Waerden invariant induction (base fixed at `F`, place each `vᵣ` into a
+    same-card spanning `Finset`) + the injectivity count assemble these into the bound.
 
-    ⚠ **The real obstruction (found 2026-07-10):** `Algebra.IsAlgebraic.trans` reduces via
-    `isAlgebraic_iff_isIntegral`, which needs the base+intermediate to be **FIELDS**. But our
-    bases are `Algebra.adjoin F X` — *subrings* (`F[X]`, polynomial-like), not subfields. So
-    the respan cannot be done at the `Algebra.adjoin` level. It must cross to
-    `IntermediateField.adjoin F X` (subfields, where `isAlgebraic_adjoin` /
-    `isAlgebraic_iff_isIntegral` / `.trans` all live). The bridge
-    `IsAlgebraic (Algebra.adjoin F X) e ↔ IsAlgebraic (IntermediateField.adjoin F X) e` has an
-    easy `→` (subring `≤` subfield, `tower_top_of_subalgebra_le`) but its `←` is exactly
-    `IsFractionRing.isAlgebraic_iff` (F⟨X⟩ = Frac F[X]) — and Mathlib has **no** ready
-    `IsFractionRing ↥(Algebra.adjoin F X) ↥(IntermediateField.adjoin F X)` instance. Building
-    that bridge (the subfield is the fraction ring of the subalgebra inside `E`) is the true
-    remaining sub-project; it is where "transcendence degree is field theory" actually bites.
-
-    **The single missing piece, precisely:** construct
-    `instance : IsFractionRing ↥(Algebra.adjoin F X) ↥(IntermediateField.adjoin F X)`. The raw
-    material is `IntermediateField.mem_adjoin_iff` — every element of `F⟨X⟩` is a quotient
-    `aeval Subtype.val r / aeval Subtype.val s` with `r s : MvPolynomial X F`, i.e. both
-    numerator and denominator lie in `Algebra.adjoin F X`; that is exactly the surjectivity
-    field of `IsLocalization (nonZeroDivisors _) _`. The "upgrade" lemmas
-    `IsFractionRing.liftAlgHom_fieldRange` (FieldTheory/Adjoin) confirm the shape but assume
-    the instance. Once it exists, `IsFractionRing.isAlgebraic_iff` gives the bridge, the
-    spanning invariant moves to `IntermediateField.adjoin`, and the respan + van der Waerden
-    assembly is clean field theory (`Algebra.IsAlgebraic.trans`, `isAlgebraic_adjoin`,
-    `IsScalarTower F⟨T'⟩ B E`, `import Mathlib.RingTheory.Algebraic.Integral`) + `Finset`
-    bookkeeping.
-  * **the invariant induction on `r`** — maintain a spanning `Finset Tᵣ ⊇ {v₀,…,v_{r-1}}`
-    with `card ≤ q`; each step uses `option_iff` (vᵣ transcendental over `F⟨v₀,…,v_{r-1}⟩`)
-    + `exists_displaceable` + `isAlgebraic_adjoin_insert_replace` + `respan`. Base fixed
-    at `F` throughout (no F[vᵣ]-isn't-a-field problem).
-  * **the count** — `{v₀,…,v_{p-1}}` distinct (independence ⇒ injective) `⊆ T_p`,
-    `card T_p ≤ q` ⇒ `p ≤ q`.
-
-Each commits only when `sorry`-free.
+**Remaining toward `chain_algebraic_dependence`:** the `(3a)` corollary — feed
+`card_le_of_isAlgebraic_span` into `MachLibChainAlgDep.algDep_of_bounded_trdeg`'s `H` (a
+`Finset`/`Fin` repackaging) — then step `(3b)`, the analytic-function domain for the actual
+iterated exponentials. The transcendence-degree machinery itself is now done.
 -/
 
 open Algebra
@@ -395,3 +374,133 @@ theorem respan {F E : Type*} [Field F] [Field E] [Algebra F E] {S : Set E} {v t 
               ≤ ((IntermediateField.adjoin K {t}).restrictScalars F).toSubalgebra := hle
     exact h0.tower_top_of_subalgebra_le hsle
   exact Algebra.IsAlgebraic.trans (L := IntermediateField.adjoin K {t})
+
+open Algebra in
+/-- **Finite transcendence-degree bound (van der Waerden) — the target.** An algebraically
+independent family `v : Fin p → E` is no larger than any spanning finset `T` (E algebraic over
+`F(T)`): `p ≤ T.card`. -/
+theorem card_le_of_isAlgebraic_span {F E : Type*} [Field F] [Field E] [Algebra F E]
+    {p : ℕ} (v : Fin p → E) (hv : AlgebraicIndependent F v)
+    (T : Finset E) (hT : Algebra.IsAlgebraic (↥(IntermediateField.adjoin F (T : Set E))) E) :
+    p ≤ T.card := by
+  classical
+  -- invariant: after placing the first k of the v's, a same-card spanning finset contains them
+  have place : ∀ k : ℕ, k ≤ p → ∃ U : Finset E, U.card = T.card ∧
+      Algebra.IsAlgebraic (↥(IntermediateField.adjoin F (U : Set E))) E ∧
+      (∀ i : Fin p, (i : ℕ) < k → v i ∈ U) := by
+    intro k
+    induction k with
+    | zero => exact fun _ => ⟨T, rfl, hT, fun i hi => absurd hi (Nat.not_lt_zero _)⟩
+    | succ k ih =>
+      intro hk
+      obtain ⟨U, hUcard, hUspan, hUpre⟩ := ih (Nat.le_of_succ_le hk)
+      have hk' : k < p := hk
+      set vk := v ⟨k, hk'⟩ with hvkdef
+      by_cases hmem : vk ∈ U
+      · refine ⟨U, hUcard, hUspan, ?_⟩
+        intro i hi
+        rcases Nat.lt_succ_iff_lt_or_eq.mp hi with h | h
+        · exact hUpre i h
+        · have : i = ⟨k, hk'⟩ := Fin.ext h
+          rw [this]; exact hmem
+      · -- vk ∉ U: displace some non-prefix generator t and swap vk in
+        -- prefix family and its range
+        have hkle : k + 1 ≤ p := hk
+        set w : Fin (k + 1) → E := v ∘ Fin.castLE hkle with hwdef
+        have hw : AlgebraicIndependent F w := hv.comp _ (Fin.castLE_injective hkle)
+        have hwlast : w (Fin.last k) = vk := by
+          simp [hwdef, hvkdef, Fin.castLE, Fin.last]
+        -- prefix finset P = {v 0, ..., v (k-1)}
+        set P : Finset E := Finset.image (fun i : Fin k => w (Fin.castSucc i)) Finset.univ with hPdef
+        have hPrange : (P : Set E) = Set.range (w ∘ Fin.castSucc) := by
+          rw [hPdef, Finset.coe_image, Finset.coe_univ, Set.image_univ]; rfl
+        have hPU : P ⊆ U := by
+          intro x hx
+          rw [hPdef, Finset.mem_image] at hx
+          obtain ⟨i, _, rfl⟩ := hx
+          have : (Fin.castLE hkle (Fin.castSucc i) : ℕ) < k := by
+            simp only [Fin.coe_castLE, Fin.coe_castSucc]; exact i.isLt
+          exact hUpre _ this
+        -- vk transcendental over F[P]
+        have htrans : Transcendental (Algebra.adjoin F (P : Set E)) vk := by
+          rw [hPrange, ← hwlast]
+          exact transcendental_last_of_algebraicIndependent w hw
+        -- vk algebraic over F[U]
+        have halgU : IsAlgebraic (Algebra.adjoin F (U : Set E)) vk := by
+          rw [isAlgebraic_algebraAdjoin_iff_intermediateField]
+          exact hUspan.isAlgebraic vk
+        -- run the pigeonhole with base P, list U \ P
+        have hunion : (P : Set E) ∪ {x | x ∈ (U \ P).toList} = (U : Set E) := by
+          ext x
+          simp only [Set.mem_union, Set.mem_setOf_eq, Finset.mem_toList, Finset.mem_sdiff,
+            Finset.mem_coe]
+          constructor
+          · rintro (hxP | ⟨hxU, _⟩)
+            · exact hPU hxP
+            · exact hxU
+          · intro hxU
+            by_cases h : x ∈ P
+            · exact Or.inl h
+            · exact Or.inr ⟨hxU, h⟩
+        have halgUnion : IsAlgebraic (Algebra.adjoin F ((P : Set E) ∪ {x | x ∈ (U \ P).toList})) vk := by
+          rw [hunion]; exact halgU
+        obtain ⟨t, pre, htmem, hpresub, htr, htalg⟩ :=
+          exists_displaceable vk (U \ P).toList (P : Set E) htrans halgUnion
+        rw [Finset.mem_toList, Finset.mem_sdiff] at htmem
+        obtain ⟨htU, htP⟩ := htmem
+        -- t ∉ pre (free from transc + algebraic)
+        have htnp : t ∉ pre := by
+          intro htp
+          rw [Set.insert_eq_of_mem htp] at htalg
+          exact htr htalg
+        -- pre ⊆ U and pre ⊆ U.erase t
+        have hpreU : pre ⊆ (U : Set E) := by rw [← hunion]; exact hpresub
+        have hpre_erase : pre ⊆ (↑(U.erase t) : Set E) := by
+          intro x hx
+          rw [Finset.coe_erase, Set.mem_diff]
+          exact ⟨hpreU hx, fun hxt => htnp (hxt ▸ hx)⟩
+        -- t algebraic over F(insert vk (U.erase t))  [subfield]
+        have htalg_if : IsAlgebraic (↥(IntermediateField.adjoin F (insert vk (↑(U.erase t) : Set E)))) t := by
+          have h1 : IsAlgebraic (Algebra.adjoin F (insert vk pre)) t :=
+            isAlgebraic_adjoin_insert_replace htalg htr
+          rw [isAlgebraic_algebraAdjoin_iff_intermediateField] at h1
+          refine h1.tower_top_of_subalgebra_le ?_
+          apply IntermediateField.adjoin.mono
+          apply Set.insert_subset_insert hpre_erase
+        -- respan: E algebraic over F(insert vk (U.erase t))
+        have hspan' : Algebra.IsAlgebraic (↥(IntermediateField.adjoin F (insert t (↑(U.erase t) : Set E)))) E := by
+          have hins : insert t (↑(U.erase t) : Set E) = (↑U : Set E) := by
+            rw [← Finset.coe_insert, Finset.insert_erase htU]
+          rw [hins]; exact hUspan
+        have hUspan' : Algebra.IsAlgebraic (↥(IntermediateField.adjoin F (insert vk (↑(U.erase t) : Set E)))) E :=
+          respan hspan' htalg_if
+        -- the new finset U' = insert vk (U.erase t)
+        refine ⟨insert vk (U.erase t), ?_, ?_, ?_⟩
+        · have hUpos : 0 < U.card := Finset.card_pos.mpr ⟨t, htU⟩
+          rw [Finset.card_insert_of_not_mem (by simp [hmem]), Finset.card_erase_of_mem htU, ← hUcard]
+          omega
+        · have : (↑(insert vk (U.erase t)) : Set E) = insert vk (↑(U.erase t) : Set E) := by
+            rw [Finset.coe_insert]
+          rw [this]; exact hUspan'
+        · intro i hi
+          rcases Nat.lt_succ_iff_lt_or_eq.mp hi with h | h
+          · have hvi : v i ∈ U := hUpre i h
+            have hviP : v i ∈ P := by
+              rw [hPdef, Finset.mem_image]
+              exact ⟨⟨i, h⟩, Finset.mem_univ _, rfl⟩
+            have hvit : v i ≠ t := fun he => htP (he ▸ hviP)
+            exact Finset.mem_insert.mpr (Or.inr (Finset.mem_erase.mpr ⟨hvit, hvi⟩))
+          · have : i = ⟨k, hk'⟩ := Fin.ext h
+            rw [this]; exact Finset.mem_insert_self _ _
+  -- count
+  obtain ⟨U, hUcard, _, hUall⟩ := place p le_rfl
+  have hsub : Finset.univ.image v ⊆ U := by
+    intro x hx
+    rw [Finset.mem_image] at hx
+    obtain ⟨i, _, rfl⟩ := hx
+    exact hUall i i.2
+  calc p = (Finset.univ.image v).card := by
+            rw [Finset.card_image_of_injective _ hv.injective, Finset.card_univ, Fintype.card_fin]
+    _ ≤ U.card := Finset.card_le_card hsub
+    _ = T.card := hUcard
+
