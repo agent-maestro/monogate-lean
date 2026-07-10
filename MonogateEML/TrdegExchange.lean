@@ -108,3 +108,20 @@ theorem isAlgebraic_adjoin_singleton_exchange
   rw [hrngb] at h0
   -- contradiction: `a` is both algebraic (`hb`) and transcendental (`h0`) over `R⟨b⟩`.
   exact h0 hb
+
+/-- **Base-set relativisation of the exchange — FREE.** The exchange over a base *set* `S`
+(the form the finite-bound induction consumes): if `a` is algebraic over `R⟨S⟩⟨b⟩` and
+transcendental over `R⟨S⟩`, then `b` is algebraic over `R⟨S⟩⟨a⟩`.
+
+Because `isAlgebraic_adjoin_singleton_exchange` is generic in the base `CommRing`, this is
+just that lemma instantiated at base ring `K := ↥(Algebra.adjoin R S)` — the subalgebra's
+`CommRing`/`Algebra` instances carry it with NO extra proof and NO `restrictScalars` burden
+at the exchange site (the tower rewrites `adjoin R (S ∪ {x}) ≃ adjoin (adjoin R S) {x}` are
+needed only where the induction threads the growing generating set, not here). Verified
+`sorryAx`-free. -/
+theorem isAlgebraic_adjoin_singleton_exchange_over_adjoin
+    {R A : Type*} [CommRing R] [CommRing A] [Algebra R A] (S : Set A) {a b : A}
+    (hb : IsAlgebraic (Algebra.adjoin (Algebra.adjoin R S) {b}) a)
+    (ha : Transcendental (Algebra.adjoin R S) a) :
+    IsAlgebraic (Algebra.adjoin (Algebra.adjoin R S) {a}) b :=
+  isAlgebraic_adjoin_singleton_exchange hb ha
