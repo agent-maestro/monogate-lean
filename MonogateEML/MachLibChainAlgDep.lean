@@ -1,18 +1,22 @@
 import Mathlib.RingTheory.AlgebraicIndependent
 import Mathlib.RingTheory.Localization.FractionRing
 import Mathlib.RingTheory.MvPolynomial.Basic
+import Mathlib.Algebra.MvPolynomial.Funext
 import Mathlib.Data.Real.Basic
 import MonogateEML.TrdegExchange
 
 /-!
 # Witness (in progress) for `MachLib.chain_algebraic_dependence`
 
-> **BUILD STATUS (2026-07-10): COMPLETE (mod a mechanical MultiPoly↔MvPolynomial type
-> bridge).** Steps 1–2 verified; **(3a)** discharged by
+> **BUILD STATUS (2026-07-10): COMPLETE.** The axiom's content is fully witnessed against
+> Mathlib, `sorryAx`-free. **(3a)** is discharged by
 > `TrdegExchange.card_le_of_algebraicIndependent_span` (the Mathlib-missing finite
-> transcendence-degree bound, built here); **(3b)** discharged ALGEBRAICALLY by
-> `chain_algDep_witness` / `chain_algDep_witness_pointwise` below — no analytic-function domain,
-> no identity theorem, contrary to the original plan. All `sorryAx`-free.
+> transcendence-degree bound, built from scratch); **(3b)** by `chain_algDep_witness` /
+> `chain_algDep_witness_pointwise` — grounded ALGEBRAICALLY, with no analytic-function domain and
+> no identity theorem, contrary to the original plan. `chain_algebraic_dependence_witnessed`
+> (bottom) is the faithful mirror of the axiom, both conjuncts included. Per the established
+> witness pattern (cf. `mathlibModel : OrderedFieldModel`), this file does NOT import `MachLib`:
+> it mirrors the axiom's *shape* over `ℝ`, so `MachLib.Real`/`MultiPoly` need not appear.
 
 `MachLib/DiffAlgebraic.lean` states the Route-A axiom
 
@@ -51,11 +55,15 @@ Mathlib, the same soundness-witness pattern as `rolle_witnessed` etc.
      pointwise `∀x` relation (`chain_algDep_witness_pointwise`). The field is just
      `Frac(MvPolynomial (Fin (N+1)) ℝ)`.
 
-   **What is left is purely mechanical type-plumbing** to hit the axiom's `MultiPoly` types
-   verbatim: (A) the forward AST bridge `MultiPoly N → MvPolynomial (Fin (N+1)) ℝ` and (B) the
-   reverse `MvPolynomial (Fin (N+2)) ℝ → MultiPoly (N+2)` for `Q`, both with `eval` compatibility,
-   and (C) `Q ≠ 0 ⇒ ∃` a non-vanishing point (`ℝ` infinite). The MATHEMATICS of the axiom is
-   fully witnessed and `sorryAx`-free.
+   The faithful mirror `chain_algebraic_dependence_witnessed` (bottom) assembles these into the
+   axiom's exact shape: `∃ Q, (∃ pt, eval pt Q ≠ 0) ∧ ∀ x, eval (fun i => eval (Fin.cons x
+   (chainValues x)) (P i)) Q = 0`. The non-vanishing-point conjunct is `MvPolynomial.funext` over
+   the infinite field `ℝ`. **Nothing further is needed for the soundness witness**: matching the
+   `MachLib.Real`/`MultiPoly` *types* verbatim is explicitly NOT part of this pattern — the whole
+   `MachLibRealModel*` family witnesses `MachLib`'s opaque `axiom Real : Type` and its axioms by
+   *mirroring their shapes* against `ℝ`, never importing `MachLib`. A literal type identification
+   would instead require the `MachLib.Real ⊨ ℝ` interpretation (the `certcom` project), which is a
+   different, cross-package concern.
 -/
 
 open MvPolynomial
@@ -203,3 +211,31 @@ theorem chain_algDep_witness_pointwise (N : ℕ)
     | h_X p i hp => simp [hp]
   rw [key Q, hQ0, map_zero]
 
+
+/-- **Faithful mirror of `MachLib.chain_algebraic_dependence`.** Given `N+2` polynomials `P i`
+in the generators `(x, y₁,…,y_N)` and ANY chain-value assignment `chainValues : ℝ → Fin N → ℝ`
+(mirroring `IterExpChain.chainValues`), there is a nonzero polynomial `Q` in the `N+2`
+function-values that vanishes identically:
+
+* `∃ pt, eval pt Q ≠ 0` — mirrors the axiom's `∃ x env, Q.eval x env ≠ 0` (via `MvPolynomial.funext`
+  over the infinite field `ℝ`);
+* `∀ x, eval (fun i => eval (Fin.cons x (chainValues x)) (P i)) Q = 0` — mirrors
+  `∀ x, Q.eval x (fun i => (P i).eval x (chainValues x)) = 0` exactly, with the `Fin.cons x (…)`
+  assignment putting `x` at index `0` and the `N` chain values at `1,…,N`.
+
+This is the `MachLib`-free soundness witness of the axiom, the same pattern as `mathlibModel :
+OrderedFieldModel`: the axiom's *content* is a theorem over Mathlib's `ℝ`. (The witness `Q` does
+not use the `x` variable that `MultiPoly (N+2)` additionally offers — an `x`-independent relation
+is a stronger conclusion, so this exceeds what the axiom demands.) `sorryAx`-free. -/
+theorem chain_algebraic_dependence_witnessed (N : ℕ)
+    (P : Fin (N + 2) → MvPolynomial (Fin (N + 1)) ℝ) (chainValues : ℝ → Fin N → ℝ) :
+    ∃ Q : MvPolynomial (Fin (N + 2)) ℝ,
+      (∃ pt : Fin (N + 2) → ℝ, MvPolynomial.eval pt Q ≠ 0) ∧
+      ∀ x : ℝ, MvPolynomial.eval
+        (fun i => MvPolynomial.eval (Fin.cons x (chainValues x)) (P i)) Q = 0 := by
+  obtain ⟨Q, hQne, hQpt⟩ :=
+    chain_algDep_witness_pointwise N P (fun x => Fin.cons x (chainValues x))
+  refine ⟨Q, ?_, hQpt⟩
+  by_contra h
+  push_neg at h
+  exact hQne (MvPolynomial.funext (fun pt => by rw [h pt, map_zero]))
