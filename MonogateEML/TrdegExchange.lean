@@ -331,3 +331,43 @@ theorem transcendental_algebraAdjoin_iff_intermediateField
     {F E : Type*} [Field F] [Field E] [Algebra F E] (X : Set E) (a : E) :
     Transcendental (Algebra.adjoin F X) a ↔ Transcendental (↥(IntermediateField.adjoin F X)) a :=
   not_congr (isAlgebraic_algebraAdjoin_iff_intermediateField X a)
+
+/-- **The respan step — PROVEN.** If `E` is algebraic over `F(insert t S)` and `t` is
+algebraic over `F(insert v S)`, then `E` is algebraic over `F(insert v S)`. This is the
+"the swapped set still spans" step: after `v` displaces `t`, the new generating set still
+makes `E` algebraic. All over `IntermediateField.adjoin` (subfields), where transitivity lives.
+
+Route through the join `B := F(insert v S)⟮t⟯` (a *single*-element extension of the new base
+`K := F(insert v S)` by the algebraic `t`): `B` is algebraic over `K` (`isAlgebraic_adjoin`,
+`t` integral over the field `K`), and `E` is algebraic over `B` (base-up from
+`F(insert t S) ≤ B.restrictScalars F`, via `adjoin_adjoin_left` + element-wise
+`IsAlgebraic.tower_top_of_subalgebra_le`), so `Algebra.IsAlgebraic.trans` (`K → B → E`) gives
+`E` algebraic over `K`. Verified `sorryAx`-free. -/
+theorem respan {F E : Type*} [Field F] [Field E] [Algebra F E] {S : Set E} {v t : E}
+    (hspan : Algebra.IsAlgebraic (↥(IntermediateField.adjoin F (insert t S))) E)
+    (htalg : IsAlgebraic (↥(IntermediateField.adjoin F (insert v S))) t) :
+    Algebra.IsAlgebraic (↥(IntermediateField.adjoin F (insert v S))) E := by
+  set K := IntermediateField.adjoin F (insert v S) with hKdef
+  have htint : IsIntegral K t := htalg.isIntegral
+  have hBK : Algebra.IsAlgebraic K (IntermediateField.adjoin K {t}) :=
+    IntermediateField.isAlgebraic_adjoin
+      (fun x hx => by rw [Set.mem_singleton_iff] at hx; exact hx ▸ htint)
+  have hle : IntermediateField.adjoin F (insert t S)
+           ≤ (IntermediateField.adjoin K {t}).restrictScalars F := by
+    have hrw : (IntermediateField.adjoin K {t}).restrictScalars F
+             = IntermediateField.adjoin F (insert v S ∪ {t}) := by
+      rw [hKdef]; exact IntermediateField.adjoin_adjoin_left F (insert v S) {t}
+    rw [hrw]
+    apply IntermediateField.adjoin.mono
+    intro x hx
+    rcases hx with rfl | hxS
+    · exact Or.inr rfl
+    · exact Or.inl (Or.inr hxS)
+  have hEB : Algebra.IsAlgebraic (↥(IntermediateField.adjoin K {t})) E := by
+    rw [Algebra.isAlgebraic_def]
+    intro e
+    have h0 : IsAlgebraic (↥(IntermediateField.adjoin F (insert t S))) e := hspan.isAlgebraic e
+    have hsle : (IntermediateField.adjoin F (insert t S)).toSubalgebra
+              ≤ ((IntermediateField.adjoin K {t}).restrictScalars F).toSubalgebra := hle
+    exact h0.tower_top_of_subalgebra_le hsle
+  exact Algebra.IsAlgebraic.trans (L := IntermediateField.adjoin K {t})
