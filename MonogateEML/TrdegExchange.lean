@@ -50,12 +50,21 @@ exchange over any base set `S` (the form the finite-bound induction consumes), m
            (hv : AlgebraicIndependent R v) (hw : Algebra.IsAlgebraic (adjoin R (range w)) A) :
            #ι ≤ #κ
 
-   Remaining shape (the algebraic content is discharged; this is bookkeeping over the
-   exchange): a `replace` step "given `A` algebraic over `R⟨range w⟩` and `a`
-   transcendental over `R`, some `wⱼ` is displaceable — `∃ j, A` algebraic over
-   `R⟨insert a (range (w ∘ j.succAbove))⟩`" (finite pigeonhole on the exchange), then
-   induction on the two family sizes. Tower rewrites where the mixed set is threaded:
-   `Algebra.adjoin_adjoin_of_tower`, `Algebra.adjoin_union`.
+   Remaining shape (the algebraic content is discharged — `isAlgebraic_adjoin_insert_replace`
+   below IS the swap; this is now pure finite bookkeeping): induct on the number of `v`'s
+   placed, maintaining a spanning `Finset T` that contains the placed `v`'s. Each step: the
+   next `vᵣ` is transcendental over `R⟨placed⟩` (independence) but algebraic over `R⟨T⟩`, so
+   a `Nat.find`-style "first index where `vᵣ` turns algebraic" picks a displaceable `t ∈ T`;
+   `isAlgebraic_adjoin_insert_replace` swaps `vᵣ` in for `t`, and `Algebra.IsAlgebraic.trans`
+   re-establishes that `A` is algebraic over the new `T`. Distinctness of the placed `v`'s
+   (independence ⇒ injective) with `card T ≤ q` gives `p ≤ q`.
+
+   **Setting:** state the bound over `[Field F] [Field E]` (Mathlib's whole finite-trdeg /
+   transcendence-basis theory lives there — `AlgebraicIndependent.lean:459`, and
+   `Algebra.IsAlgebraic.trans` needs the domain structure). The exchange/replace lemmas here
+   are general `CommRing` and specialise into the field setting unchanged. The target `H` is
+   precisely the hypothesis `algebraicIndependent_bounded_of_finset_algebraicIndependent_bounded`
+   (and `MachLibChainAlgDep.algDep_of_bounded_trdeg`) already consume.
 3. **(3a) corollary + discharge** `algDep_of_bounded_trdeg`'s `H`, closing
    `chain_algebraic_dependence` (mod step 3b, the analytic-function domain for the exps).
 
