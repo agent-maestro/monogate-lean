@@ -80,8 +80,23 @@ final assembly, which contains no new algebra:
     `T' = insert vᵣ (T.erase t)`), conclude "`E` algebraic over `F⟨T'⟩`". Route through the
     join `B := adjoin F (↑T ∪ {vᵣ})`: `F⟨T'⟩ ≤ B` and `adjoin F ↑T ≤ B` (`adjoin_mono`),
     `E` algebraic over `B` (`Algebra.IsAlgebraic.tower_top`), `B` algebraic over `F⟨T'⟩`
-    (adjoin of algebraic generators), then `Algebra.IsAlgebraic.trans`
-    (`import Mathlib.RingTheory.Algebraic.Integral`, `IsScalarTower F⟨T'⟩ B E`).
+    (adjoin of algebraic generators), then `Algebra.IsAlgebraic.trans`.
+
+    ⚠ **The real obstruction (found 2026-07-10):** `Algebra.IsAlgebraic.trans` reduces via
+    `isAlgebraic_iff_isIntegral`, which needs the base+intermediate to be **FIELDS**. But our
+    bases are `Algebra.adjoin F X` — *subrings* (`F[X]`, polynomial-like), not subfields. So
+    the respan cannot be done at the `Algebra.adjoin` level. It must cross to
+    `IntermediateField.adjoin F X` (subfields, where `isAlgebraic_adjoin` /
+    `isAlgebraic_iff_isIntegral` / `.trans` all live). The bridge
+    `IsAlgebraic (Algebra.adjoin F X) e ↔ IsAlgebraic (IntermediateField.adjoin F X) e` has an
+    easy `→` (subring `≤` subfield, `tower_top_of_subalgebra_le`) but its `←` is exactly
+    `IsFractionRing.isAlgebraic_iff` (F⟨X⟩ = Frac F[X]) — and Mathlib has **no** ready
+    `IsFractionRing ↥(Algebra.adjoin F X) ↥(IntermediateField.adjoin F X)` instance. Building
+    that bridge (the subfield is the fraction ring of the subalgebra inside `E`) is the true
+    remaining sub-project; it is where "transcendence degree is field theory" actually bites.
+    Once the bridge exists, redo the spanning invariant in `IntermediateField.adjoin` and the
+    respan is clean field theory. `import Mathlib.RingTheory.Algebraic.Integral` + an
+    `IsScalarTower F⟨T'⟩ B E`.
   * **the invariant induction on `r`** — maintain a spanning `Finset Tᵣ ⊇ {v₀,…,v_{r-1}}`
     with `card ≤ q`; each step uses `option_iff` (vᵣ transcendental over `F⟨v₀,…,v_{r-1}⟩`)
     + `exists_displaceable` + `isAlgebraic_adjoin_insert_replace` + `respan`. Base fixed
