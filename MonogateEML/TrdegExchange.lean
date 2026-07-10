@@ -176,3 +176,44 @@ theorem isAlgebraic_adjoin_insert_replace
     rw [Set.insert_eq, Set.union_comm, adjoin_union_eq_adjoin_adjoin]
   have hwq' : IsAlgebraic ((Algebra.adjoin (Algebra.adjoin R s) {a}).restrictScalars R) wq := hwq
   exact heq2.symm ▸ hwq'
+
+/-- `{x | x ∈ c :: l} = insert c {x | x ∈ l}` — the set swept by a list, one cons at a time. -/
+theorem setOf_mem_cons {E : Type*} (c : E) (l : List E) :
+    {x | x ∈ c :: l} = insert c {x | x ∈ l} := by
+  ext x; simp only [Set.mem_setOf_eq, List.mem_cons, Set.mem_insert_iff]
+
+/-- **The pigeonhole for the finite-bound induction — PROVEN.** Walk the generator list `l`.
+If `a` is transcendental over `R⟨s⟩` but algebraic over `R⟨s ∪ l⟩`, then somewhere along the
+list a generator `t` first turns `a` algebraic: there is a `t ∈ l` and a prefix-grown base
+`pre` with `a` still transcendental over `R⟨pre⟩` yet algebraic over `R⟨insert t pre⟩`. That
+`t` is exactly the displaceable generator that `isAlgebraic_adjoin_insert_replace` swaps out.
+
+Pure list induction on `l`, branching on `Classical.em (IsAlgebraic (adjoin R (insert c s)) a)`
+at each cons; no field or algebra content, so it holds over any `CommRing`. Verified
+`sorryAx`-free. -/
+theorem exists_displaceable {R E : Type*} [CommRing R] [CommRing E] [Algebra R E]
+    (a : E) : ∀ (l : List E) (s : Set E),
+    Transcendental (Algebra.adjoin R s) a →
+    IsAlgebraic (Algebra.adjoin R (s ∪ {x | x ∈ l})) a →
+    ∃ (t : E) (pre : Set E), t ∈ l ∧
+      Transcendental (Algebra.adjoin R pre) a ∧
+      IsAlgebraic (Algebra.adjoin R (insert t pre)) a := by
+  intro l
+  induction l with
+  | nil =>
+    intro s ha0 halg
+    have he : {x : E | x ∈ ([] : List E)} = ∅ := by ext x; simp
+    rw [he, Set.union_empty] at halg
+    exact absurd halg ha0
+  | cons c l' ih =>
+    intro s ha0 halg
+    by_cases hca : IsAlgebraic (Algebra.adjoin R (insert c s)) a
+    · exact ⟨c, s, List.mem_cons_self c l', ha0, hca⟩
+    · have ha0' : Transcendental (Algebra.adjoin R (s ∪ {c})) a := by
+        rw [Set.union_comm, Set.singleton_union]; exact hca
+      have hset : s ∪ {c} ∪ {x | x ∈ l'} = s ∪ {x | x ∈ c :: l'} := by
+        rw [setOf_mem_cons, Set.union_assoc, Set.singleton_union]
+      have halg' : IsAlgebraic (Algebra.adjoin R ((s ∪ {c}) ∪ {x | x ∈ l'})) a := by
+        rw [hset]; exact halg
+      obtain ⟨t, pre, ht, htr, htalg⟩ := ih (s ∪ {c}) ha0' halg'
+      exact ⟨t, pre, List.mem_cons_of_mem c ht, htr, htalg⟩
