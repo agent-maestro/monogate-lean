@@ -1,15 +1,12 @@
 import Mathlib.RingTheory.AlgebraicIndependent
+import Mathlib.Data.Real.Basic
 
 /-!
 # Witness (in progress) for `MachLib.chain_algebraic_dependence`
 
-> **BUILD STATUS (2026-07-10): NOT build-verified in this checkout.** This monogate-lean
-> Mathlib cache carries only the ANALYSIS modules the existing witnesses use
-> (`rolle_witnessed` etc.); the ALGEBRA hierarchy — `Mathlib.RingTheory.AlgebraicIndependent`
-> — is not pre-built here, and the per-module `lake exe cache get` path is not wired up. The
-> `exists_nonzero_relation_of_not_algIndep` proof below is written against
-> `algebraicIndependent_iff` (independent ⇔ `aeval` injective) and is expected to compile once
-> that olean is available. Treat as a drafted scaffold + plan, not a checked witness.
+> **BUILD STATUS (2026-07-10): build-verified.** Steps 1–2 below compile against Mathlib
+> (`lake exe cache get` was run to fetch the algebra hierarchy). Step 3 (the connection to
+> the specific iterated-exp functions) remains.
 
 `MachLib/DiffAlgebraic.lean` states the Route-A axiom
 
@@ -55,3 +52,29 @@ theorem exists_nonzero_relation_of_not_algIndep
   push_neg at h
   obtain ⟨p, hp, hpne⟩ := h
   exact ⟨p, hpne, hp⟩
+
+/-- **The trans-degree bound — step 2, PROVED.** If the transcendence degree of `A` over `ℝ`
+is `≤ n+1` (stated in Mathlib's finset form `H`: every algebraically-independent finite set
+has cardinality `≤ n+1`), then any injective family of `n+2` elements is algebraically
+dependent: they satisfy a nonzero polynomial relation. This is the reusable core the witness
+feeds the chain-value functions into — it uses only the trivial trans-degree UPPER bound.
+
+Proof: were `g` independent, `Set.range g` would be an independent set of cardinality `n+2`
+(g injective), contradicting the `≤ n+1` bound. -/
+theorem algDep_of_bounded_trdeg {A : Type} [CommRing A] [Algebra ℝ A] {n : ℕ}
+    (g : Fin (n + 2) → A) (hinj : Function.Injective g)
+    (H : ∀ s : Finset A, (AlgebraicIndependent ℝ (fun i : s => (i : A))) → s.card ≤ n + 1) :
+    ∃ Q : MvPolynomial (Fin (n + 2)) ℝ, Q ≠ 0 ∧ MvPolynomial.aeval g Q = 0 := by
+  apply exists_nonzero_relation_of_not_algIndep
+  intro hindep
+  have hset : AlgebraicIndependent ℝ ((↑) : Set.range g → A) :=
+    (algebraicIndependent_subtype_range hinj).mpr hindep
+  have hbound :=
+    algebraicIndependent_bounded_of_finset_algebraicIndependent_bounded H (Set.range g) hset
+  have hchain : ((n + 2 : ℕ) : Cardinal) ≤ ((n + 1 : ℕ) : Cardinal) :=
+    calc ((n + 2 : ℕ) : Cardinal)
+        = Cardinal.mk (Fin (n + 2))    := (Cardinal.mk_fin (n + 2)).symm
+      _ = Cardinal.mk (Set.range g)    := (Cardinal.mk_range_eq g hinj).symm
+      _ ≤ ((n + 1 : ℕ) : Cardinal)     := hbound
+  have : (n + 2 : ℕ) ≤ n + 1 := by exact_mod_cast hchain
+  omega
