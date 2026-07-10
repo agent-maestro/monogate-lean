@@ -1,7 +1,9 @@
 import Mathlib.RingTheory.AlgebraicIndependent
 import Mathlib.RingTheory.Algebraic.Basic
+import Mathlib.RingTheory.Algebraic.Integral
 import Mathlib.RingTheory.Localization.Integral
 import Mathlib.FieldTheory.Adjoin
+import Mathlib.Logic.Equiv.Fin
 import Mathlib.Data.Real.Basic
 
 /-!
@@ -238,7 +240,7 @@ theorem exists_displaceable {R E : Type*} [CommRing R] [CommRing E] [Algebra R E
     (a : E) : ∀ (l : List E) (s : Set E),
     Transcendental (Algebra.adjoin R s) a →
     IsAlgebraic (Algebra.adjoin R (s ∪ {x | x ∈ l})) a →
-    ∃ (t : E) (pre : Set E), t ∈ l ∧
+    ∃ (t : E) (pre : Set E), t ∈ l ∧ pre ⊆ s ∪ {x | x ∈ l} ∧
       Transcendental (Algebra.adjoin R pre) a ∧
       IsAlgebraic (Algebra.adjoin R (insert t pre)) a := by
   intro l
@@ -251,15 +253,37 @@ theorem exists_displaceable {R E : Type*} [CommRing R] [CommRing E] [Algebra R E
   | cons c l' ih =>
     intro s ha0 halg
     by_cases hca : IsAlgebraic (Algebra.adjoin R (insert c s)) a
-    · exact ⟨c, s, List.mem_cons_self c l', ha0, hca⟩
+    · exact ⟨c, s, List.mem_cons_self c l', Set.subset_union_left, ha0, hca⟩
     · have ha0' : Transcendental (Algebra.adjoin R (s ∪ {c})) a := by
         rw [Set.union_comm, Set.singleton_union]; exact hca
       have hset : s ∪ {c} ∪ {x | x ∈ l'} = s ∪ {x | x ∈ c :: l'} := by
         rw [setOf_mem_cons, Set.union_assoc, Set.singleton_union]
       have halg' : IsAlgebraic (Algebra.adjoin R ((s ∪ {c}) ∪ {x | x ∈ l'})) a := by
         rw [hset]; exact halg
-      obtain ⟨t, pre, ht, htr, htalg⟩ := ih (s ∪ {c}) ha0' halg'
-      exact ⟨t, pre, List.mem_cons_of_mem c ht, htr, htalg⟩
+      obtain ⟨t, pre, ht, hsub, htr, htalg⟩ := ih (s ∪ {c}) ha0' halg'
+      exact ⟨t, pre, List.mem_cons_of_mem c ht, hset ▸ hsub, htr, htalg⟩
+
+/-- **The last element of an independent family is transcendental over the adjoin of the
+rest — PROVEN.** For `v : Fin (n+1) → E` algebraically independent over `F`, the final entry
+`v (Fin.last n)` is transcendental over `F⟨v₀,…,v_{n-1}⟩`. Reindex the family by
+`finSuccEquivLast` (last ↔ none), then `AlgebraicIndependent.option_iff` reads off the
+transcendence. Verified `sorryAx`-free. -/
+theorem transcendental_last_of_algebraicIndependent
+    {F E : Type*} [CommRing F] [CommRing E] [Algebra F E] {n : ℕ}
+    (v : Fin (n + 1) → E) (hv : AlgebraicIndependent F v) :
+    Transcendental (Algebra.adjoin F (Set.range (v ∘ Fin.castSucc))) (v (Fin.last n)) := by
+  have hpre : AlgebraicIndependent F (v ∘ Fin.castSucc) :=
+    hv.comp Fin.castSucc (Fin.castSucc_injective n)
+  have hfe : (fun o : Option (Fin n) => o.elim (v (Fin.last n)) (v ∘ Fin.castSucc))
+             ∘ finSuccEquivLast = v := by
+    funext k
+    refine Fin.lastCases ?_ ?_ k
+    · simp [finSuccEquivLast_last]
+    · intro i; simp [finSuccEquivLast_castSucc]
+  have hopt : AlgebraicIndependent F
+      (fun o : Option (Fin n) => o.elim (v (Fin.last n)) (v ∘ Fin.castSucc)) :=
+    (algebraicIndependent_equiv' finSuccEquivLast hfe).mp hv
+  exact (hpre.option_iff (v (Fin.last n))).mp hopt
 
 /-!
 ## The subring → subfield bridge
