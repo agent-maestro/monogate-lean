@@ -135,3 +135,35 @@ theorem isAlgebraic_adjoin_singleton_exchange_over_adjoin
     (ha : Transcendental (Algebra.adjoin R S) a) :
     IsAlgebraic (Algebra.adjoin (Algebra.adjoin R S) {a}) b :=
   isAlgebraic_adjoin_singleton_exchange hb ha
+
+/-- **The `replace` step — the exchange lifted to a generating set.** If `a` is algebraic
+over `R⟨insert wq s⟩` but transcendental over `R⟨s⟩`, then the generator `wq` may be
+*displaced* by `a`: `wq` is algebraic over `R⟨insert a s⟩`. This is the single swap the
+van der Waerden finite-bound induction performs — it exchanges `a` into the spanning set in
+place of `wq` without shrinking what the set generates.
+
+It is the base-set exchange (`…_over_adjoin`) wrapped in the `adjoin`-tower bridge
+`adjoin R (s ∪ {x}) = (adjoin (adjoin R s) {x}).restrictScalars R`
+(`Algebra.adjoin_union_eq_adjoin_adjoin`). The bridge costs nothing at the algebra level:
+`IsAlgebraic` is **definitionally invariant** under `Subalgebra.restrictScalars` (same
+carrier, same ring structure), so the tower rewrites are pure `▸`-transport with no side
+goals. Verified `sorryAx`-free. -/
+theorem isAlgebraic_adjoin_insert_replace
+    {R A : Type*} [CommRing R] [CommRing A] [Algebra R A] {s : Set A} {wq a : A}
+    (hb : IsAlgebraic (Algebra.adjoin R (insert wq s)) a)
+    (ha : Transcendental (Algebra.adjoin R s) a) :
+    IsAlgebraic (Algebra.adjoin R (insert a s)) wq := by
+  have heq : Algebra.adjoin R (insert wq s)
+           = (Algebra.adjoin (Algebra.adjoin R s) {wq}).restrictScalars R := by
+    rw [Set.insert_eq, Set.union_comm, adjoin_union_eq_adjoin_adjoin]
+  -- `IsAlgebraic` is defeq under `restrictScalars`, so the tower form is the same statement.
+  have hb'' : IsAlgebraic ((Algebra.adjoin (Algebra.adjoin R s) {wq}).restrictScalars R) a :=
+    heq ▸ hb
+  have hb' : IsAlgebraic (Algebra.adjoin (Algebra.adjoin R s) {wq}) a := hb''
+  have hwq : IsAlgebraic (Algebra.adjoin (Algebra.adjoin R s) {a}) wq :=
+    isAlgebraic_adjoin_singleton_exchange_over_adjoin s hb' ha
+  have heq2 : Algebra.adjoin R (insert a s)
+            = (Algebra.adjoin (Algebra.adjoin R s) {a}).restrictScalars R := by
+    rw [Set.insert_eq, Set.union_comm, adjoin_union_eq_adjoin_adjoin]
+  have hwq' : IsAlgebraic ((Algebra.adjoin (Algebra.adjoin R s) {a}).restrictScalars R) wq := hwq
+  exact heq2.symm ▸ hwq'
