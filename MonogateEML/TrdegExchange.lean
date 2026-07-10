@@ -1,5 +1,7 @@
 import Mathlib.RingTheory.AlgebraicIndependent
 import Mathlib.RingTheory.Algebraic.Basic
+import Mathlib.RingTheory.Localization.Integral
+import Mathlib.FieldTheory.Adjoin
 import Mathlib.Data.Real.Basic
 
 /-!
@@ -258,3 +260,74 @@ theorem exists_displaceable {R E : Type*} [CommRing R] [CommRing E] [Algebra R E
         rw [hset]; exact halg
       obtain ⟨t, pre, ht, htr, htalg⟩ := ih (s ∪ {c}) ha0' halg'
       exact ⟨t, pre, List.mem_cons_of_mem c ht, htr, htalg⟩
+
+/-!
+## The subring → subfield bridge
+
+The exchange/replace/pigeonhole lemmas above all speak of `Algebra.adjoin F X` — the
+*subring* `F[X]`. But the finite-bound respan needs `Algebra.IsAlgebraic.trans`, which
+(via `isAlgebraic_iff_isIntegral`) requires **field** bases. The bridge below crosses to
+`IntermediateField.adjoin F X` (the *subfield* `F(X)`), where the field-theoretic transitivity
+lives. It was the one piece Mathlib lacked: the fact that `F(X)` is the fraction ring of `F[X]`
+inside `E`, i.e. the instance `IsFractionRing ↥(Algebra.adjoin F X) ↥(IntermediateField.adjoin F X)`,
+built here from `IntermediateField.mem_adjoin_iff` (every subfield element is a quotient of
+subring elements).
+-/
+
+/-- **The subring → subfield bridge — PROVEN.** `e` is algebraic over the subring `F[X]`
+(`Algebra.adjoin F X`) iff it is algebraic over the subfield `F(X)`
+(`IntermediateField.adjoin F X`). Both directions at once from `IsFractionRing.isAlgebraic_iff`,
+after constructing the missing instance `IsFractionRing ↥(Algebra.adjoin F X) ↥(F(X))`: the
+subfield is the fraction ring of the subring inside `E`. The `IsLocalization.surj'` field is
+exactly `IntermediateField.mem_adjoin_iff` (`x ∈ F(X) ↔ x = aeval r / aeval s` with
+`r,s ∈ F[X]`); `map_units'` is "nonzero in a field is a unit"; `exists_of_eq` is injectivity of
+the inclusion. Verified `sorryAx`-free. -/
+theorem isAlgebraic_algebraAdjoin_iff_intermediateField
+    {F E : Type*} [Field F] [Field E] [Algebra F E] (X : Set E) (e : E) :
+    IsAlgebraic (Algebra.adjoin F X) e ↔ IsAlgebraic (↥(IntermediateField.adjoin F X)) e := by
+  have hmem : ∀ r : MvPolynomial X F,
+      MvPolynomial.aeval (Subtype.val : X → E) r ∈ Algebra.adjoin F X := by
+    intro r
+    have : MvPolynomial.aeval (Subtype.val : X → E) r
+        ∈ (MvPolynomial.aeval (Subtype.val : X → E)).range := ⟨r, rfl⟩
+    rwa [← Algebra.adjoin_range_eq_range_aeval, Subtype.range_coe] at this
+  letI algAK : Algebra ↥(Algebra.adjoin F X) ↥(IntermediateField.adjoin F X) :=
+    (Subalgebra.inclusion (IntermediateField.algebra_adjoin_le_adjoin F X)).toRingHom.toAlgebra
+  have hmapAK : ∀ a : ↥(Algebra.adjoin F X),
+      ((algebraMap ↥(Algebra.adjoin F X) ↥(IntermediateField.adjoin F X) a : _) : E) = (a : E) :=
+    fun a => rfl
+  haveI tower : IsScalarTower ↥(Algebra.adjoin F X) ↥(IntermediateField.adjoin F X) E :=
+    IsScalarTower.of_algebraMap_eq (fun a => (hmapAK a).symm)
+  haveI fr : IsFractionRing ↥(Algebra.adjoin F X) ↥(IntermediateField.adjoin F X) := by
+    refine ⟨?_, ?_, ?_⟩
+    · rintro ⟨y, hy⟩
+      rw [mem_nonZeroDivisors_iff_ne_zero] at hy
+      refine isUnit_iff_ne_zero.mpr (fun h => hy (Subtype.ext ?_))
+      have hc := congrArg (fun k : ↥(IntermediateField.adjoin F X) => (k : E)) h
+      simpa [hmapAK] using hc
+    · intro z
+      obtain ⟨r, s, hzrs⟩ := (IntermediateField.mem_adjoin_iff F (z : E)).mp z.2
+      by_cases hden : MvPolynomial.aeval (Subtype.val : X → E) s = 0
+      · refine ⟨⟨0, 1⟩, Subtype.ext ?_⟩
+        rw [hden, div_zero] at hzrs
+        simp [show (z : E) = 0 from hzrs]
+      · refine ⟨⟨⟨_, hmem r⟩, ⟨⟨_, hmem s⟩,
+          mem_nonZeroDivisors_iff_ne_zero.mpr (fun h => hden (congrArg Subtype.val h))⟩⟩,
+          Subtype.ext ?_⟩
+        have : ((z : E)) * MvPolynomial.aeval (Subtype.val : X → E) s
+             = MvPolynomial.aeval (Subtype.val : X → E) r := by
+          rw [hzrs, div_mul_cancel₀ _ hden]
+        simpa [hmapAK] using this
+    · intro x y hxy
+      refine ⟨1, ?_⟩
+      have hc := congrArg (fun k : ↥(IntermediateField.adjoin F X) => (k : E)) hxy
+      simp only [hmapAK] at hc
+      simp [Subtype.ext hc]
+  exact IsFractionRing.isAlgebraic_iff ↥(Algebra.adjoin F X) ↥(IntermediateField.adjoin F X) E
+
+/-- Bridge for transcendence (negation of `isAlgebraic_algebraAdjoin_iff_intermediateField`):
+`a` is transcendental over the subring `F[X]` iff over the subfield `F(X)`. -/
+theorem transcendental_algebraAdjoin_iff_intermediateField
+    {F E : Type*} [Field F] [Field E] [Algebra F E] (X : Set E) (a : E) :
+    Transcendental (Algebra.adjoin F X) a ↔ Transcendental (↥(IntermediateField.adjoin F X)) a :=
+  not_congr (isAlgebraic_algebraAdjoin_iff_intermediateField X a)
