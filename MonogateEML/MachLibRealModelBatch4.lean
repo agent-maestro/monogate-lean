@@ -1,6 +1,7 @@
 import Mathlib.Analysis.SpecialFunctions.Log.Deriv
 import Mathlib.Analysis.Analytic.Constructions
 import Mathlib.Analysis.SpecialFunctions.ExpDeriv
+import Mathlib.Analysis.SpecialFunctions.Complex.Analytic
 
 /-!
 # `MachLib.Real` soundness witness — the last Khovanskii-footprint axioms
@@ -9,12 +10,14 @@ Batch four. A cross-check of the `#print axioms` footprint of the Khovanskii res
 soundness batches turned up five axioms not yet witnessed — all in the MIXED exp/log barrier bound
 (`eml_eval_boundedZeros_unconditional`); the pure-exponential explicit bound needs none of them. Two are
 order/field one-liners; three are reciprocal/log analyticity facts the encoder's `1/x` and `log` nodes rest
-on. This grounds four of the five against Mathlib's `ℝ` (`analytic_log_pos` — real-analyticity of `Real.log`
-— is the one genuinely deep residual: Mathlib has `analyticAt_rexp` but no `Real.log` analyticity lemma, so
-it needs the analytic inverse-function theorem; deferred).
+on. **All five are grounded here** against Mathlib's `ℝ`. `analytic_log_pos` (real-analyticity of `Real.log`)
+is the only non-trivial one — Mathlib has `analyticAt_rexp` but no `Real.log` analyticity lemma, so it routes
+through the complex logarithm (`analyticAt_clog` on the slit plane, restricted to ℝ and sandwiched between
+`ofReal`/`re`).
 
 `IsAnalyticOnReals f S` is mirrored by `AnalyticOnNhd ℝ f S`, `Ioi`/`Icc` by `Set.Ioi`/`Set.Icc`. Everything
-here reduces to the three irreducible Lean axioms; no `sorryAx`.
+here reduces to the three irreducible Lean axioms; no `sorryAx`. Together with the earlier batches and the
+Rolle witness, this closes the **entire** `#print axioms` footprint of the Khovanskii results against ℝ.
 -/
 
 namespace MonogateEML.RealModel
@@ -51,11 +54,29 @@ theorem analytic_ne_zero_nbhd (G : ℝ → ℝ) (a b x : ℝ)
     max_lt hax hxpq.1, lt_min hxb hxpq.2, fun y hy1 hy2 => ?_⟩
   exact hsub ⟨(le_max_right a p).trans_lt hy1, hy2.trans_le (min_le_right b q)⟩
 
-/-! ## Log analyticity (deferred — needs the analytic inverse-function theorem)
+/-! ## Log analyticity (via `Complex.log` on the slit plane) -/
 
-`analytic_log_pos : AnalyticOnNhd ℝ Real.log (Set.Ioi 0)`. `Real.log` is real-analytic on `(0,∞)` (it is the
-inverse of the entire `Real.exp`, whose derivative never vanishes), but Mathlib exposes no `Real.log`
-analyticity lemma, so this witness would route through the analytic inverse-function theorem. Left for a
-focused follow-up; the other four residuals are discharged above. -/
+/-- `MachLib.analytic_log_pos` — `Real.log` is analytic on `(0, ∞)`. Mathlib has no direct `Real.log`
+analyticity lemma, so route through the complex logarithm: `Complex.log` is holomorphic on the slit plane
+(`Complex.analyticAt_clog`), which contains every positive real. Restrict scalars `ℂ → ℝ`, sandwich between
+the ℝ-linear `Complex.ofReal` and `Complex.re`, and note `(Complex.log ↑x).re = Real.log x` on the positive
+reals (`AnalyticAt.congr`). -/
+theorem analytic_log_pos : AnalyticOnNhd ℝ Real.log (Set.Ioi (0 : ℝ)) := by
+  intro x hx
+  have hx0 : (0 : ℝ) < x := hx
+  have hmem : (x : ℂ) ∈ Complex.slitPlane := Complex.ofReal_mem_slitPlane.mpr hx0
+  -- `Complex.log` analytic at `↑x` over ℝ (restrict scalars from ℂ).
+  have hclog : AnalyticAt ℝ Complex.log (x : ℂ) := (analyticAt_clog hmem).restrictScalars
+  -- the ℝ-linear coercions are analytic.
+  have hofReal : AnalyticAt ℝ (fun t : ℝ => (t : ℂ)) x := Complex.ofRealCLM.analyticAt x
+  have hre : AnalyticAt ℝ (fun z : ℂ => z.re) (Complex.log (x : ℂ)) := Complex.reCLM.analyticAt _
+  -- compose  re ∘ log ∘ ofReal  and rewrite to `Real.log` on a neighbourhood of `x`.
+  have hlog_ofReal : AnalyticAt ℝ (fun t : ℝ => Complex.log (t : ℂ)) x :=
+    AnalyticAt.comp (g := Complex.log) (f := fun t : ℝ => (t : ℂ)) hclog hofReal
+  have hcomp : AnalyticAt ℝ (fun t : ℝ => (Complex.log (t : ℂ)).re) x :=
+    AnalyticAt.comp (g := fun z : ℂ => z.re) (f := fun t : ℝ => Complex.log (t : ℂ)) hre hlog_ofReal
+  refine hcomp.congr ?_
+  filter_upwards [Ioi_mem_nhds hx0] with t ht
+  rw [← Complex.ofReal_log (le_of_lt ht), Complex.ofReal_re]
 
 end MonogateEML.RealModel
