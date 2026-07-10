@@ -70,9 +70,25 @@ exchange over any base set `S` (the form the finite-bound induction consumes), m
 
 ## Status (2026-07-10)
 
-Step "crux" (the exchange lemma) **PROVEN and verified** below, and step 1 (base-set
-relativisation) follows **for free** (both `sorryAx`-free). Steps 2–3 remain; the hard
-algebraic content is now done, leaving a bookkeeping induction over the proven exchange.
+The entire **algebraic content is proven and verified `sorryAx`-free**:
+`isAlgebraic_adjoin_singleton_exchange` (crux) → `…_over_adjoin` (relativisation, free) →
+`isAlgebraic_adjoin_insert_replace` (the swap) → `exists_displaceable` (the pigeonhole that
+picks which generator each independent element displaces). What remains for step 2 is the
+final assembly, which contains no new algebra:
+
+  * **`respan`** — from "`E` algebraic over `F⟨T⟩`" and "`t` algebraic over `F⟨T'⟩`" (with
+    `T' = insert vᵣ (T.erase t)`), conclude "`E` algebraic over `F⟨T'⟩`". Route through the
+    join `B := adjoin F (↑T ∪ {vᵣ})`: `F⟨T'⟩ ≤ B` and `adjoin F ↑T ≤ B` (`adjoin_mono`),
+    `E` algebraic over `B` (`Algebra.IsAlgebraic.tower_top`), `B` algebraic over `F⟨T'⟩`
+    (adjoin of algebraic generators), then `Algebra.IsAlgebraic.trans`
+    (`import Mathlib.RingTheory.Algebraic.Integral`, `IsScalarTower F⟨T'⟩ B E`).
+  * **the invariant induction on `r`** — maintain a spanning `Finset Tᵣ ⊇ {v₀,…,v_{r-1}}`
+    with `card ≤ q`; each step uses `option_iff` (vᵣ transcendental over `F⟨v₀,…,v_{r-1}⟩`)
+    + `exists_displaceable` + `isAlgebraic_adjoin_insert_replace` + `respan`. Base fixed
+    at `F` throughout (no F[vᵣ]-isn't-a-field problem).
+  * **the count** — `{v₀,…,v_{p-1}}` distinct (independence ⇒ injective) `⊆ T_p`,
+    `card T_p ≤ q` ⇒ `p ≤ q`.
+
 Each commits only when `sorry`-free.
 -/
 
