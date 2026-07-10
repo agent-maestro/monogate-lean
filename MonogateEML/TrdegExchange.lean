@@ -94,10 +94,12 @@ algebraically independent `v : Fin p → E` is bounded by any spanning finset,
   * The van der Waerden invariant induction (base fixed at `F`, place each `vᵣ` into a
     same-card spanning `Finset`) + the injectivity count assemble these into the bound.
 
-**Remaining toward `chain_algebraic_dependence`:** the `(3a)` corollary — feed
-`card_le_of_isAlgebraic_span` into `MachLibChainAlgDep.algDep_of_bounded_trdeg`'s `H` (a
-`Finset`/`Fin` repackaging) — then step `(3b)`, the analytic-function domain for the actual
-iterated exponentials. The transcendence-degree machinery itself is now done.
+**`(3a)` is also DONE:** `card_le_of_algebraicIndependent_span` (bottom) is precisely the
+`H` that `MachLibChainAlgDep.algDep_of_bounded_trdeg` consumes — for any spanning `T` of
+`n+1` generators it reads `∀ s, AlgebraicIndependent F ↥s → s.card ≤ n+1`. **Remaining toward
+`chain_algebraic_dependence`:** only step `(3b)`, exhibiting the spanning finset for the
+actual iterated exponentials (they live in the fraction field of an analytic-function domain).
+The transcendence-degree machinery — every abstract ingredient — is complete and `sorryAx`-free.
 -/
 
 open Algebra
@@ -504,3 +506,18 @@ theorem card_le_of_isAlgebraic_span {F E : Type*} [Field F] [Field E] [Algebra F
     _ ≤ U.card := Finset.card_le_card hsub
     _ = T.card := hUcard
 
+
+open Algebra in
+/-- **(3a), Finset form.** An algebraically-independent finset `s` is no larger than any
+spanning finset `T` (E algebraic over `F(T)`). This is *exactly* the transcendence-degree
+hypothesis `H` that `MachLibChainAlgDep.algDep_of_bounded_trdeg` consumes: with a spanning
+`T` of `T.card = n + 1` generators it reads `∀ s, AlgebraicIndependent F ↥s → s.card ≤ n+1`.
+Reindex `↥s ≃ Fin s.card` and apply `card_le_of_isAlgebraic_span`. `sorryAx`-free. -/
+theorem card_le_of_algebraicIndependent_span {F E : Type*} [Field F] [Field E] [Algebra F E]
+    (s T : Finset E) (hs : AlgebraicIndependent F (fun i : s => (i : E)))
+    (hT : Algebra.IsAlgebraic (↥(IntermediateField.adjoin F (T : Set E))) E) :
+    s.card ≤ T.card := by
+  have hv' : AlgebraicIndependent F ((fun i : s => (i : E)) ∘ (Fintype.equivFin s).symm) :=
+    hs.comp _ (Fintype.equivFin s).symm.injective
+  have h := card_le_of_isAlgebraic_span ((fun i : s => (i : E)) ∘ (Fintype.equivFin s).symm) hv' T hT
+  rwa [Fintype.card_coe] at h
