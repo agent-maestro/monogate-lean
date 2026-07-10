@@ -94,9 +94,19 @@ final assembly, which contains no new algebra:
     `IsFractionRing ↥(Algebra.adjoin F X) ↥(IntermediateField.adjoin F X)` instance. Building
     that bridge (the subfield is the fraction ring of the subalgebra inside `E`) is the true
     remaining sub-project; it is where "transcendence degree is field theory" actually bites.
-    Once the bridge exists, redo the spanning invariant in `IntermediateField.adjoin` and the
-    respan is clean field theory. `import Mathlib.RingTheory.Algebraic.Integral` + an
-    `IsScalarTower F⟨T'⟩ B E`.
+
+    **The single missing piece, precisely:** construct
+    `instance : IsFractionRing ↥(Algebra.adjoin F X) ↥(IntermediateField.adjoin F X)`. The raw
+    material is `IntermediateField.mem_adjoin_iff` — every element of `F⟨X⟩` is a quotient
+    `aeval Subtype.val r / aeval Subtype.val s` with `r s : MvPolynomial X F`, i.e. both
+    numerator and denominator lie in `Algebra.adjoin F X`; that is exactly the surjectivity
+    field of `IsLocalization (nonZeroDivisors _) _`. The "upgrade" lemmas
+    `IsFractionRing.liftAlgHom_fieldRange` (FieldTheory/Adjoin) confirm the shape but assume
+    the instance. Once it exists, `IsFractionRing.isAlgebraic_iff` gives the bridge, the
+    spanning invariant moves to `IntermediateField.adjoin`, and the respan + van der Waerden
+    assembly is clean field theory (`Algebra.IsAlgebraic.trans`, `isAlgebraic_adjoin`,
+    `IsScalarTower F⟨T'⟩ B E`, `import Mathlib.RingTheory.Algebraic.Integral`) + `Finset`
+    bookkeeping.
   * **the invariant induction on `r`** — maintain a spanning `Finset Tᵣ ⊇ {v₀,…,v_{r-1}}`
     with `card ≤ q`; each step uses `option_iff` (vᵣ transcendental over `F⟨v₀,…,v_{r-1}⟩`)
     + `exists_displaceable` + `isAlgebraic_adjoin_insert_replace` + `respan`. Base fixed
