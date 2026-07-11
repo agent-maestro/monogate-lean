@@ -98,4 +98,27 @@ theorem fTerm_slice_effective_bound
   rw [hfold] at hbound
   omega
 
+/-- **K-mode effective count — closed form.** Along the `R2` (mode-truncation) axis: for the
+`K`-instanton-truncated one-modulus flux F-term — an `ExpPoly` of length `K+1` (modes
+`e^{0·x}, …, e^{K·x}`) whose coefficients all have syntactic degree `≤ D` (the nilpotent / polynomial
+order) — the real critical points on the slice number **at most `(K+1)·(D+1)`**, given non-degeneracy.
+
+This is the explicit **`(modes)·(degree+1)`** dependence an effective *counting* bound wants — precisely
+what the flux counting conjectures (Grimm, arXiv:2311.09295) lack and what o-minimality cannot supply.
+For the concrete one-instanton model above (`K=1`, `D=3`) it gives `2·4 = 8`, consistent with (and
+looser than) the tight `≤ 7` from the exact per-mode degrees. `rolle_ct`-only, via
+`expPoly_effective_bound_uniform`. -/
+theorem fTerm_mode_count_bound
+    (ep : ExpPoly) (K D : Nat)
+    (hlen : ep.coeffs.length = K + 1)
+    (hdeg : ∀ p ∈ ep.coeffs, degreeUpper p ≤ D)
+    (a b : MachLib.Real) (hab : a < b)
+    (hne : ∃ x : MachLib.Real, a < x ∧ x < b ∧ ep.eval x ≠ 0)
+    (zeros : List MachLib.Real) (hnd : zeros.Nodup)
+    (hz : ∀ z ∈ zeros, a < z ∧ z < b ∧ ep.eval z = 0) :
+    zeros.length ≤ (K + 1) * (D + 1) := by
+  have h := expPoly_effective_bound_uniform ep D hdeg a b hab hne zeros hnd hz
+  rw [hlen] at h
+  exact h
+
 end MonogateEML.FluxLandscapeGate2
