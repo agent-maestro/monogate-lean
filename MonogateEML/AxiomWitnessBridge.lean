@@ -92,6 +92,8 @@ def witnessRegistry : List (Name × TSyntax `term) := [
   (`MachLib.Real.le_iff_lt_or_eq, Unhygienic.run `(fun {a b} => le_iff_lt_or_eq)),
   (`MachLib.Real.zero_lt_one_ax, Unhygienic.run `(zero_lt_one)),
   (`MachLib.Real.zero_ne_one_ax, Unhygienic.run `(zero_ne_one)),
+  (`MachLib.Real.lt_total,       Unhygienic.run `(lt_trichotomy)),
+  (`MachLib.Real.mul_inv,        Unhygienic.run `(fun a ha => mul_one_div_cancel ha)),
   (`MachLib.Real.sub_def,        Unhygienic.run `(sub_eq_add_neg)),
   (`MachLib.Real.div_def,        Unhygienic.run `(fun a b _ => div_eq_mul_one_div a b)),
   (`MachLib.Real.natCast_zero,   Unhygienic.run `(Nat.cast_zero)),
@@ -122,7 +124,9 @@ def witnessRegistry : List (Name × TSyntax `term) := [
   (`MachLib.analytic_sub,        Unhygienic.run `(fun f g S hf hg => hf.sub hg)),
   (`MachLib.analytic_mul,        Unhygienic.run `(fun f g S hf hg => hf.mul hg)),
   (`MachLib.analytic_exp,        Unhygienic.run `(fun S => analyticOnNhd_rexp.mono (Set.subset_univ S))),
-  (`MachLib.analytic_comp,       Unhygienic.run `(fun f g S T hg hmaps hf => hf.comp hg hmaps)) ]
+  (`MachLib.analytic_comp,       Unhygienic.run `(fun f g S T hg hmaps hf => hf.comp hg hmaps)),
+  (`MachLib.analytic_one_div_pos, Unhygienic.run `(by simp only [one_div]; exact analyticOnNhd_inv.mono (fun x hx => ne_of_gt hx))),
+  (`MachLib.Real.HasDerivAt_inv, Unhygienic.run `(fun f a x hfx hf => by simpa [one_div, sq] using hf.inv hfx)) ]
 
 def mkMap : TermElabM (List (Name × Expr)) :=
   interpEntries.mapM (fun (n, s) => do return (n, ← elabTerm s none))
@@ -160,5 +164,41 @@ run_cmd Command.liftTermElabM do
       typecheck (witness does not inhabit the interpreted axiom type): {failed.toList}"
   logInfo m!"AxiomWitnessBridge: {witnessed.size}/{witnessRegistry.length} registered axioms \
     verbatim-witnessed (kernel-checked `MachLib.Real ⊨ ℝ`)."
+
+/-! ## Ledger cross-check — trusted = witnessed ∪ standard ∪ mapped ∪ (tracked gap)
+
+Closes the loop with `AxiomLedger`: every axiom the ledger pins as `trustedFootprint` must be
+accounted for here — verbatim-witnessed above, a Lean standard axiom, an interpretation-map
+constant (carrier/predicate, not a proposition), or an explicitly tracked gap with a reason.
+Anything trusted-but-unaccounted FAILS; a stale gap entry FAILS. So "trusted" (ledger) and
+"witnessed" (this file) can no longer silently diverge. -/
+
+/-- The ledger's trusted footprint (machlib `AxiomLedger.trustedFootprint`, pinned snapshot). -/
+def trustedFootprint : List Name := [`Classical.choice, `MachLib.IsAnalyticOnReals, `MachLib.Real, `MachLib.Real.HasDerivAt, `MachLib.Real.HasDerivAt_add, `MachLib.Real.HasDerivAt_comp, `MachLib.Real.HasDerivAt_const, `MachLib.Real.HasDerivAt_exp, `MachLib.Real.HasDerivAt_id, `MachLib.Real.HasDerivAt_inv, `MachLib.Real.HasDerivAt_log_pos, `MachLib.Real.HasDerivAt_mul, `MachLib.Real.HasDerivAt_sub, `MachLib.Real.HasDerivAt_unique, `MachLib.Real.addR, `MachLib.Real.add_assoc, `MachLib.Real.add_comm, `MachLib.Real.add_lt_add_left, `MachLib.Real.add_neg, `MachLib.Real.add_zero, `MachLib.Real.divR, `MachLib.Real.div_def, `MachLib.Real.exp, `MachLib.Real.exp_pos, `MachLib.Real.exp_surj, `MachLib.Real.leR, `MachLib.Real.le_iff_lt_or_eq, `MachLib.Real.ltR, `MachLib.Real.lt_irrefl_ax, `MachLib.Real.lt_total, `MachLib.Real.lt_trans_ax, `MachLib.Real.mulR, `MachLib.Real.mul_assoc, `MachLib.Real.mul_comm, `MachLib.Real.mul_distrib, `MachLib.Real.mul_inv, `MachLib.Real.mul_one_ax, `MachLib.Real.mul_pos, `MachLib.Real.natCast, `MachLib.Real.natCast_succ, `MachLib.Real.natCast_zero, `MachLib.Real.negR, `MachLib.Real.oneR, `MachLib.Real.one_div_pos_of_pos, `MachLib.Real.rolle_ct, `MachLib.Real.subR, `MachLib.Real.sub_def, `MachLib.Real.zeroR, `MachLib.Real.zero_lt_one_ax, `MachLib.Real.zero_ne_one_ax, `MachLib.analytic_add, `MachLib.analytic_comp, `MachLib.analytic_const, `MachLib.analytic_exp, `MachLib.analytic_id, `MachLib.analytic_log_pos, `MachLib.analytic_mul, `MachLib.analytic_one_div_pos, `MachLib.analytic_sub, `Quot.sound, `propext]
+
+/-- Standard Lean axioms — sound by construction, not witnessed here. -/
+def standardAxioms : List Name := [`propext, `Classical.choice, `Quot.sound]
+
+/-- Carrier/predicate constants — interpretation-map entries (`Real ↦ ℝ`, `HasDerivAt` /
+`IsAnalyticOnReals ↦` Mathlib's), not propositions to witness. -/
+def mappedConstants : List Name := [`MachLib.Real, `MachLib.Real.HasDerivAt, `MachLib.IsAnalyticOnReals]
+
+/-- Known-unwitnessed trusted axioms + machine-readable reason. CI-visible; shrinks as witnesses
+are added. Trusted-but-unaccounted (not here, not registered, not standard/mapped) FAILS. -/
+def witnessGap : List (Name × String) := [(`MachLib.analytic_log_pos, "no direct Mathlib analyticOnNhd_log on Ioi 0 yet (derivable via contDiffOn / power series)")]
+
+run_cmd Command.liftTermElabM do
+  let registered := witnessRegistry.map Prod.fst
+  let accounted := registered ++ standardAxioms ++ mappedConstants ++ witnessGap.map Prod.fst
+  let unaccounted := trustedFootprint.filter (fun a => !(accounted.contains a))
+  unless unaccounted.isEmpty do
+    logError m!"AxiomWitnessBridge: {unaccounted.length} trusted axiom(s) UNACCOUNTED \
+(not witnessed, not standard/mapped, not a tracked gap): {unaccounted}"
+  let staleGap := (witnessGap.map Prod.fst).filter (fun a => !(trustedFootprint.contains a))
+  unless staleGap.isEmpty do
+    logError m!"AxiomWitnessBridge: stale witnessGap entr(y/ies) no longer trusted: {staleGap}"
+  logInfo m!"AxiomWitnessBridge coverage: {registered.length} witnessed + {standardAxioms.length} \
+standard + {mappedConstants.length} mapped + {witnessGap.length} tracked-gap = full accounting of \
+{trustedFootprint.length} trusted axioms."
 
 end AxiomWitnessBridge
