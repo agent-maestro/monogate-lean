@@ -57,7 +57,10 @@ def interpEntries : List (Name × TSyntax `term) := [
   (`MachLib.Real.natCast,       Unhygienic.run `((Nat.cast : ℕ → ℝ))),
   (`MachLib.Real.exp,           Unhygienic.run `(Real.exp)),
   (`MachLib.Real.log,           Unhygienic.run `(Real.log)),
-  (`MachLib.Real.HasDerivAt,    Unhygienic.run `(fun (f : ℝ → ℝ) (f' x : ℝ) => HasDerivAt f f' x)) ]
+  (`MachLib.Real.HasDerivAt,    Unhygienic.run `(fun (f : ℝ → ℝ) (f' x : ℝ) => HasDerivAt f f' x)),
+  (`MachLib.RealSet,            Unhygienic.run `((Set ℝ))),
+  (`MachLib.Ioi,                Unhygienic.run `((fun a : ℝ => Set.Ioi a))),
+  (`MachLib.IsAnalyticOnReals,  Unhygienic.run `((fun (f : ℝ → ℝ) (S : Set ℝ) => AnalyticOnNhd ℝ f S))) ]
 
 /-- Witness registry: MachLib axiom ↦ a Mathlib term claimed to inhabit its interpreted type.
 The claim is CHECKED (not trusted): a wrong entry fails the gate. -/
@@ -106,7 +109,20 @@ def witnessRegistry : List (Name × TSyntax `term) := [
   (`MachLib.Real.HasDerivAt_sub,   Unhygienic.run `(fun {f g f' g' x} hf hg => HasDerivAt.sub hf hg)),
   (`MachLib.Real.HasDerivAt_mul,   Unhygienic.run `(fun {f g f' g' x} hf hg => HasDerivAt.mul hf hg)),
   (`MachLib.Real.HasDerivAt_unique, Unhygienic.run `(fun {f f₀ f₁ x} h₀ h₁ => HasDerivAt.unique h₀ h₁)),
-  (`MachLib.Real.rolle_ct,       Unhygienic.run `(MonogateEML.RealModel.rolle_witnessed)) ]
+  (`MachLib.Real.rolle_ct,       Unhygienic.run `(MonogateEML.RealModel.rolle_witnessed)),
+  -- remaining derivatives + casts
+  (`MachLib.Real.natCast_succ,   Unhygienic.run `(fun n => by push_cast; ring)),
+  (`MachLib.Real.exp_surj,       Unhygienic.run `(fun y hy => ⟨Real.log y, Real.exp_log hy⟩)),
+  (`MachLib.Real.HasDerivAt_log_pos, Unhygienic.run `(fun x hx => by simpa [one_div] using Real.hasDerivAt_log (ne_of_gt hx))),
+  (`MachLib.Real.HasDerivAt_comp, Unhygienic.run `(fun f g a b x hg hf => HasDerivAt.comp x hf hg)),
+  -- analytic batch
+  (`MachLib.analytic_id,         Unhygienic.run `(fun S => analyticOnNhd_id)),
+  (`MachLib.analytic_const,      Unhygienic.run `(fun c S => analyticOnNhd_const)),
+  (`MachLib.analytic_add,        Unhygienic.run `(fun f g S hf hg => hf.add hg)),
+  (`MachLib.analytic_sub,        Unhygienic.run `(fun f g S hf hg => hf.sub hg)),
+  (`MachLib.analytic_mul,        Unhygienic.run `(fun f g S hf hg => hf.mul hg)),
+  (`MachLib.analytic_exp,        Unhygienic.run `(fun S => analyticOnNhd_rexp.mono (Set.subset_univ S))),
+  (`MachLib.analytic_comp,       Unhygienic.run `(fun f g S T hg hmaps hf => hf.comp hg hmaps)) ]
 
 def mkMap : TermElabM (List (Name × Expr)) :=
   interpEntries.mapM (fun (n, s) => do return (n, ← elabTerm s none))
