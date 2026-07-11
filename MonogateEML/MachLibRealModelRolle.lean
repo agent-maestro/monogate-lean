@@ -56,4 +56,46 @@ theorem rolle_witnessed (f : ℝ → ℝ) (a b : ℝ) (hab : a < b)
   have := hF c hc
   rwa [hFc] at this
 
+/-! ## Tombstone — the retired unsound `rolle` is machine-checked FALSE
+
+`MachLib` once carried an OPEN-interval Rolle (`axiom rolle`, differentiability on `(a,b)`
+only, no endpoint continuity) that is **not a theorem of ℝ**; it was replaced by the sound
+closed-interval `rolle_ct` (witnessed above) and retired. A `grep "axiom rolle\b"`-style
+absence check for the unsound form rots the moment anything is renamed. The tombstone below
+is the machine-checked replacement: the old statement's exact shape, proved FALSE over ℝ,
+so its unsoundness is a `#check`-able fact that cannot silently drift back. -/
+
+/-- The OLD, unsound open-interval Rolle statement (the retired `MachLib.Real.rolle`):
+differentiability on the OPEN `(a,b)` only — no endpoint continuity — plus `f a = f b`,
+concluding an interior stationary point. -/
+def OldOpenRolle : Prop :=
+  ∀ (f : ℝ → ℝ) (a b : ℝ), a < b → f a = f b →
+    (∀ c : ℝ, a < c → c < b → ∃ f', HasDerivAt f f' c) →
+    ∃ c : ℝ, a < c ∧ c < b ∧ HasDerivAt f 0 c
+
+/-- **Tombstone.** The old open-interval Rolle is FALSE over ℝ. Counterexample: `f = x` on
+`(0,1)` pinned to `0` at both endpoints (discontinuous there), so `f 0 = f 1 = 0` and `f` is
+differentiable on the OPEN interval with `f' ≡ 1 ≠ 0` — the exact continuity gap that made
+`rolle` unsound and forced the closed-interval `rolle_ct`. Machine-checked, `sorryAx`-free. -/
+theorem not_oldOpenRolle : ¬ OldOpenRolle := by
+  intro H
+  set f : ℝ → ℝ := fun x => if x = 0 ∨ x = 1 then 0 else x with hf
+  have hfa : f 0 = 0 := by simp [hf]
+  have hfb : f 1 = 0 := by simp [hf]
+  have hderiv : ∀ c : ℝ, 0 < c → c < 1 → HasDerivAt f 1 c := by
+    intro c hc0 hc1
+    have hne : c ≠ 0 ∧ c ≠ 1 := ⟨ne_of_gt hc0, ne_of_lt hc1⟩
+    have hopen : IsOpen {x : ℝ | x ≠ 0 ∧ x ≠ 1} := by
+      rw [Set.setOf_and]; exact isOpen_ne.inter isOpen_ne
+    have hev : f =ᶠ[nhds c] (fun x => x) := by
+      refine Filter.eventuallyEq_of_mem (hopen.mem_nhds ⟨hne.1, hne.2⟩) ?_
+      intro x hx
+      simp only [Set.mem_setOf_eq] at hx
+      simp [hf, hx.1, hx.2]
+    exact (hasDerivAt_id c).congr_of_eventuallyEq hev
+  obtain ⟨c, hc0, hc1, hc⟩ :=
+    H f 0 1 (by norm_num) (by rw [hfa, hfb]) (fun c h0 h1 => ⟨1, hderiv c h0 h1⟩)
+  have : (0 : ℝ) = 1 := hc.unique (hderiv c hc0 hc1)
+  norm_num at this
+
 end MonogateEML.RealModel
