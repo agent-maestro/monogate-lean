@@ -1,7 +1,9 @@
 import MachLib.IterExpDepthNBoundUncond
 import MachLib.PfaffianGeneralBoundUncond
+import MachLib.ExpPolyEffectiveBound
 import Mathlib.Data.Set.Finite.Basic
 import Mathlib.Data.Finset.Card
+import Mathlib.Data.Set.Card
 
 /-!
 # The tameness backbone — monogate's finiteness, in o-minimal vocabulary
@@ -36,6 +38,7 @@ It is the first machine-checked brick of that edifice, not the edifice.
 
 open MachLib MachLib.IterExpDepthN MachLib.MultiPolyMod
 open MachLib.PfaffianChainMod MachLib.PfaffianGeneralReduce
+open MachLib.SingleExpKhovanskii MachLib.SingleExpKhovanskii.ExpPoly
 
 namespace MonogateEML.Tameness
 
@@ -76,5 +79,47 @@ theorem pfaffian_zero_set_finite (a b : MachLib.Real) (hab : a < b)
     {x : MachLib.Real | a < x ∧ x < b ∧ (pfaffianChainFn c p).eval x = 0}.Finite := by
   obtain ⟨N, hN⟩ := pfaffian_khovanskii_bound_gen_uncond a b hab M c hexp hcoh hpos p hne
   exact finite_of_nodup_length_bound (N := N) (fun l hnd hmem => hN l hnd hmem)
+
+/-! ## The *effective* count, in `Set.ncard` vocabulary
+
+`finite_of_nodup_length_bound` throws the bound away (it yields only `Set.Finite`). Monogate's edge is
+**effectiveness** — an explicit *number*. This section carries the bound through to `Set.ncard`, the
+exact cardinality shape the tameness/counting literature uses, so the just-proven single-exp effective
+bound (`expPoly_effective_bound`, `rolle_ct`-only) reads as an explicit `ncard ≤ …`. -/
+
+/-- **Effective bridge.** The same bounded-`Nodup`-length hypothesis that gives `Set.Finite` gives the
+explicit cardinality bound `s.ncard ≤ N`. -/
+theorem ncard_le_of_nodup_length_bound {α : Type*} {s : Set α} {N : ℕ}
+    (h : ∀ l : List α, l.Nodup → (∀ x ∈ l, x ∈ s) → l.length ≤ N) : s.ncard ≤ N := by
+  have hfin : s.Finite := finite_of_nodup_length_bound h
+  rw [Set.ncard_eq_toFinset_card s hfin]
+  have hlist := h hfin.toFinset.toList hfin.toFinset.nodup_toList
+    (fun x hx => (hfin.mem_toFinset).mp (Finset.mem_toList.mp hx))
+  rwa [Finset.length_toList] at hlist
+
+/-- **The single-exp effective count, in o-minimal vocabulary.** The real zero set of a non-vanishing
+`ExpPoly` on `(a,b)` has `Set.ncard ≤ length + ΣsimplifiedDeg` — the explicit cardinality
+`expPoly_effective_bound` gives, now in the `Set.ncard` shape the counting literature uses. This is the
+*effective* refinement of a `Set.Finite` statement: not just finite, but bounded by an explicit number.
+`rolle_ct`-only. -/
+theorem expPoly_zero_set_ncard_le (ep : ExpPoly) (a b : MachLib.Real) (hab : a < b)
+    (hne : ∃ x, a < x ∧ x < b ∧ ep.eval x ≠ 0) :
+    {x : MachLib.Real | a < x ∧ x < b ∧ ep.eval x = 0}.ncard
+      ≤ ep.coeffs.length + sumSimplifiedDegrees ep.coeffs := by
+  apply ncard_le_of_nodup_length_bound
+  intro l hnd hmem
+  exact expPoly_effective_bound ep a b hab hne l hnd (fun z hz => hmem z hz)
+
+/-- **The closed-form effective count, in o-minimal vocabulary.** If every coefficient has degree `≤ D`
+and there are `K+1` exponential modes, the real zero set has `Set.ncard ≤ (K+1)·(D+1)` — the explicit
+`(modes)·(degree+1)` count the flux counting conjectures want, in Mathlib's cardinality vocabulary. -/
+theorem expPoly_zero_set_ncard_le_uniform (ep : ExpPoly) (D : ℕ)
+    (hdeg : ∀ p ∈ ep.coeffs, MachLib.PolynomialRootCount.degreeUpper p ≤ D)
+    (a b : MachLib.Real) (hab : a < b)
+    (hne : ∃ x, a < x ∧ x < b ∧ ep.eval x ≠ 0) :
+    {x : MachLib.Real | a < x ∧ x < b ∧ ep.eval x = 0}.ncard ≤ ep.coeffs.length * (D + 1) := by
+  apply ncard_le_of_nodup_length_bound
+  intro l hnd hmem
+  exact expPoly_effective_bound_uniform ep D hdeg a b hab hne l hnd (fun z hz => hmem z hz)
 
 end MonogateEML.Tameness
