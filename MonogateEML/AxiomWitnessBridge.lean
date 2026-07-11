@@ -4,6 +4,7 @@ import Mathlib.Analysis.Calculus.Deriv.Basic
 import Mathlib.Analysis.SpecialFunctions.Log.Deriv
 import Mathlib.Analysis.Calculus.Deriv.Inv
 import MonogateEML.MachLibRealModelRolle
+import MonogateEML.MachLibRealModelLog
 
 /-!
 # Axiom-witness bridge — verbatim, kernel-checked `MachLib.Real ⊨ ℝ`
@@ -126,6 +127,7 @@ def witnessRegistry : List (Name × TSyntax `term) := [
   (`MachLib.analytic_exp,        Unhygienic.run `(fun S => analyticOnNhd_rexp.mono (Set.subset_univ S))),
   (`MachLib.analytic_comp,       Unhygienic.run `(fun f g S T hg hmaps hf => hf.comp hg hmaps)),
   (`MachLib.analytic_one_div_pos, Unhygienic.run `(by simp only [one_div]; exact analyticOnNhd_inv.mono (fun x hx => ne_of_gt hx))),
+  (`MachLib.analytic_log_pos,    Unhygienic.run `(MonogateEML.RealModel.analyticOnNhd_real_log_Ioi)),
   (`MachLib.Real.HasDerivAt_inv, Unhygienic.run `(fun f a x hfx hf => by simpa [one_div, sq] using hf.inv hfx)) ]
 
 def mkMap : TermElabM (List (Name × Expr)) :=
@@ -185,7 +187,7 @@ def mappedConstants : List Name := [`MachLib.Real, `MachLib.Real.HasDerivAt, `Ma
 
 /-- Known-unwitnessed trusted axioms + machine-readable reason. CI-visible; shrinks as witnesses
 are added. Trusted-but-unaccounted (not here, not registered, not standard/mapped) FAILS. -/
-def witnessGap : List (Name × String) := [(`MachLib.analytic_log_pos, "no direct Mathlib analyticOnNhd_log on Ioi 0 yet (derivable via contDiffOn / power series)")]
+def witnessGap : List (Name × String) := []
 
 run_cmd Command.liftTermElabM do
   let registered := witnessRegistry.map Prod.fst

@@ -32,9 +32,12 @@ Together: "is X witnessed / in the footprint?" is a CI status, not an argument.
 
 ## Current state
 
-251→**252 axioms** pinned; 4 headline footprints ⊆ 61 trusted; **56/61 trusted axioms
-verbatim-witnessed**, the rest = 3 Lean-standard + 3 mapped constants (Real/HasDerivAt/
-IsAnalyticOnReals) + **1 tracked gap** (`analytic_log_pos` — Mathlib has no direct
-`analyticOnNhd_log` on `Ioi 0` yet). The one formerly-unsound axiom, `eml_tree_analytic_on_pos`,
-has had its dropped `LogArgPos` side-condition restored and is disclosed-but-sound; the retired
-open-interval `rolle` is machine-checked *false* (`RealModel.not_oldOpenRolle`).
+**252 axioms** pinned; 4 headline footprints ⊆ 61 trusted; all **61 trusted axioms accounted for
+with zero tracked gaps** — **57 verbatim-witnessed**, the rest Lean-standard axioms and mapped
+type-carriers (Real/HasDerivAt/IsAnalyticOnReals). The last gap,
+`analytic_log_pos`, is now witnessed by `MonogateEML.RealModel.analyticOnNhd_real_log_Ioi`
+(`Real.log` analytic on `(0,∞)`, derived through `Complex.log` on the slit plane — Mathlib has no
+direct real-log analyticity, so this is a genuine derivation; a generalized, PR-ready version lives
+in `mathlib-pr/`). The one formerly-unsound axiom, `eml_tree_analytic_on_pos`, has had its dropped
+`LogArgPos` side-condition restored and is disclosed-but-sound; the retired open-interval `rolle` is
+machine-checked *false* (`RealModel.not_oldOpenRolle`).
