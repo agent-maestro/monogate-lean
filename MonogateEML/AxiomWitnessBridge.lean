@@ -1,6 +1,8 @@
 import MachLib
 import Mathlib.Analysis.SpecialFunctions.Exp
 import Mathlib.Analysis.Calculus.Deriv.Basic
+import Mathlib.Analysis.SpecialFunctions.Log.Deriv
+import Mathlib.Analysis.Calculus.Deriv.Inv
 import MonogateEML.MachLibRealModelRolle
 
 /-!
@@ -31,7 +33,7 @@ namespace AxiomWitnessBridge
 /-- Interpretation map: each MachLib constant appearing in a registered axiom's type ↦ the
 Mathlib term it denotes over `ℝ`. Instances are `inferInstance`; functions are η-expanded so the
 substituted application β-reduces to the Mathlib call. -/
-def interpEntries : List (Name × Syntax) := [
+def interpEntries : List (Name × TSyntax `term) := [
   (`MachLib.Real,               Unhygienic.run `(ℝ)),
   (`MachLib.Real.instAdd,       Unhygienic.run `((inferInstance : Add ℝ))),
   (`MachLib.Real.instMul,       Unhygienic.run `((inferInstance : Mul ℝ))),
@@ -42,25 +44,68 @@ def interpEntries : List (Name × Syntax) := [
   (`MachLib.Real.instLE,        Unhygienic.run `((inferInstance : LE ℝ))),
   (`MachLib.Real.instOfNatZero, Unhygienic.run `((inferInstance : OfNat ℝ 0))),
   (`MachLib.Real.instOfNatOne,  Unhygienic.run `((inferInstance : OfNat ℝ 1))),
+  -- raw operations (appear directly in some axiom types)
+  (`MachLib.Real.addR,          Unhygienic.run `((fun a b : ℝ => a + b))),
+  (`MachLib.Real.mulR,          Unhygienic.run `((fun a b : ℝ => a * b))),
+  (`MachLib.Real.subR,          Unhygienic.run `((fun a b : ℝ => a - b))),
+  (`MachLib.Real.divR,          Unhygienic.run `((fun a b : ℝ => a / b))),
+  (`MachLib.Real.negR,          Unhygienic.run `((Neg.neg : ℝ → ℝ))),
+  (`MachLib.Real.zeroR,         Unhygienic.run `((0 : ℝ))),
+  (`MachLib.Real.oneR,          Unhygienic.run `((1 : ℝ))),
+  (`MachLib.Real.ltR,           Unhygienic.run `((fun a b : ℝ => a < b))),
+  (`MachLib.Real.leR,           Unhygienic.run `((fun a b : ℝ => a ≤ b))),
+  (`MachLib.Real.natCast,       Unhygienic.run `((Nat.cast : ℕ → ℝ))),
   (`MachLib.Real.exp,           Unhygienic.run `(Real.exp)),
+  (`MachLib.Real.log,           Unhygienic.run `(Real.log)),
   (`MachLib.Real.HasDerivAt,    Unhygienic.run `(fun (f : ℝ → ℝ) (f' x : ℝ) => HasDerivAt f f' x)) ]
 
 /-- Witness registry: MachLib axiom ↦ a Mathlib term claimed to inhabit its interpreted type.
 The claim is CHECKED (not trusted): a wrong entry fails the gate. -/
-def witnessRegistry : List (Name × Syntax) := [
+def witnessRegistry : List (Name × TSyntax `term) := [
+  -- raw operations (interpreted type is just the ℝ operation's type)
+  (`MachLib.Real.addR,           Unhygienic.run `((fun a b : ℝ => a + b))),
+  (`MachLib.Real.mulR,           Unhygienic.run `((fun a b : ℝ => a * b))),
+  (`MachLib.Real.subR,           Unhygienic.run `((fun a b : ℝ => a - b))),
+  (`MachLib.Real.divR,           Unhygienic.run `((fun a b : ℝ => a / b))),
+  (`MachLib.Real.negR,           Unhygienic.run `((Neg.neg : ℝ → ℝ))),
+  (`MachLib.Real.zeroR,          Unhygienic.run `((0 : ℝ))),
+  (`MachLib.Real.oneR,           Unhygienic.run `((1 : ℝ))),
+  (`MachLib.Real.ltR,            Unhygienic.run `((fun a b : ℝ => a < b))),
+  (`MachLib.Real.leR,            Unhygienic.run `((fun a b : ℝ => a ≤ b))),
+  (`MachLib.Real.natCast,        Unhygienic.run `((Nat.cast : ℕ → ℝ))),
+  -- field / order laws
   (`MachLib.Real.add_comm,       Unhygienic.run `(add_comm)),
   (`MachLib.Real.add_assoc,      Unhygienic.run `(add_assoc)),
   (`MachLib.Real.add_zero,       Unhygienic.run `(add_zero)),
+  (`MachLib.Real.add_neg,        Unhygienic.run `(fun a => add_neg_cancel a)),
+  (`MachLib.Real.add_lt_add_left, Unhygienic.run `(fun {a b} h c => add_lt_add_left h c)),
   (`MachLib.Real.mul_comm,       Unhygienic.run `(mul_comm)),
   (`MachLib.Real.mul_assoc,      Unhygienic.run `(mul_assoc)),
   (`MachLib.Real.mul_one_ax,     Unhygienic.run `(mul_one)),
+  (`MachLib.Real.mul_distrib,    Unhygienic.run `(mul_add)),
   (`MachLib.Real.mul_pos,        Unhygienic.run `(fun {a b} => mul_pos)),
   (`MachLib.Real.lt_irrefl_ax,   Unhygienic.run `(lt_irrefl)),
   (`MachLib.Real.lt_trans_ax,    Unhygienic.run `(fun {a b c} => lt_trans)),
+  (`MachLib.Real.le_iff_lt_or_eq, Unhygienic.run `(fun {a b} => le_iff_lt_or_eq)),
   (`MachLib.Real.zero_lt_one_ax, Unhygienic.run `(zero_lt_one)),
+  (`MachLib.Real.zero_ne_one_ax, Unhygienic.run `(zero_ne_one)),
+  (`MachLib.Real.sub_def,        Unhygienic.run `(sub_eq_add_neg)),
+  (`MachLib.Real.div_def,        Unhygienic.run `(fun a b _ => div_eq_mul_one_div a b)),
+  (`MachLib.Real.natCast_zero,   Unhygienic.run `(Nat.cast_zero)),
+  (`MachLib.Real.one_div_pos_of_pos, Unhygienic.run `(fun {a} => one_div_pos.mpr)),
+  -- exp
+  (`MachLib.Real.exp,            Unhygienic.run `(Real.exp)),
   (`MachLib.Real.exp_pos,        Unhygienic.run `(Real.exp_pos)),
   (`MachLib.Real.exp_add,        Unhygienic.run `(Real.exp_add)),
   (`MachLib.Real.exp_zero,       Unhygienic.run `(Real.exp_zero)),
+  -- derivatives
+  (`MachLib.Real.HasDerivAt_exp,   Unhygienic.run `(fun x => Real.hasDerivAt_exp x)),
+  (`MachLib.Real.HasDerivAt_const, Unhygienic.run `(fun (c x : ℝ) => hasDerivAt_const x c)),
+  (`MachLib.Real.HasDerivAt_id,    Unhygienic.run `(fun x => hasDerivAt_id x)),
+  (`MachLib.Real.HasDerivAt_add,   Unhygienic.run `(fun {f g f' g' x} hf hg => HasDerivAt.add hf hg)),
+  (`MachLib.Real.HasDerivAt_sub,   Unhygienic.run `(fun {f g f' g' x} hf hg => HasDerivAt.sub hf hg)),
+  (`MachLib.Real.HasDerivAt_mul,   Unhygienic.run `(fun {f g f' g' x} hf hg => HasDerivAt.mul hf hg)),
+  (`MachLib.Real.HasDerivAt_unique, Unhygienic.run `(fun {f f₀ f₁ x} h₀ h₁ => HasDerivAt.unique h₀ h₁)),
   (`MachLib.Real.rolle_ct,       Unhygienic.run `(MonogateEML.RealModel.rolle_witnessed)) ]
 
 def mkMap : TermElabM (List (Name × Expr)) :=
@@ -76,7 +121,7 @@ def interpret (m : List (Name × Expr)) (e : Expr) : Expr :=
 /-- Verbatim check: does `witnessStx` elaborate at the INTERPRETED type of `axName`?
 `withoutErrToSorry` turns a mismatch into a thrown error (caught → `false`); the sorry/mvar guard
 rejects partial elaborations. -/
-def checkWitnessed (m : List (Name × Expr)) (axName : Name) (witnessStx : Syntax) : TermElabM Bool := do
+def checkWitnessed (m : List (Name × Expr)) (axName : Name) (witnessStx : TSyntax `term) : TermElabM Bool := do
   let some ci := (← getEnv).find? axName | return false
   let iType := interpret m ci.type
   try
