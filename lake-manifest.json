@@ -1,7 +1,14 @@
 {"version": "1.1.0",
  "packagesDir": ".lake/packages",
  "packages":
- [{"url": "https://github.com/leanprover-community/mathlib4",
+ [{"type": "path",
+   "scope": "",
+   "name": "MachLib",
+   "manifestFile": "lake-manifest.json",
+   "inherited": false,
+   "dir": "./../machlib/foundations",
+   "configFile": "lakefile.lean"},
+  {"url": "https://github.com/leanprover-community/mathlib4",
    "type": "git",
    "subDir": null,
    "scope": "",
@@ -91,5 +98,5 @@
    "inputRev": "main",
    "inherited": true,
    "configFile": "lakefile.toml"}],
- "name": "«monogate-pnp»",
+ "name": "MonogateEML",
  "lakeDir": ".lake"}
