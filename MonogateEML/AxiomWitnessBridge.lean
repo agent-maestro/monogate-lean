@@ -3,8 +3,10 @@ import Mathlib.Analysis.SpecialFunctions.Exp
 import Mathlib.Analysis.Calculus.Deriv.Basic
 import Mathlib.Analysis.SpecialFunctions.Log.Deriv
 import Mathlib.Analysis.Calculus.Deriv.Inv
+import Mathlib.Analysis.SpecialFunctions.Trigonometric.Deriv
 import MonogateEML.MachLibRealModelRolle
 import MonogateEML.MachLibRealModelLog
+import MonogateEML.MachLibRealModelHyperbolic
 
 /-!
 # Axiom-witness bridge — verbatim, kernel-checked `MachLib.Real ⊨ ℝ`
@@ -58,6 +60,10 @@ def interpEntries : List (Name × TSyntax `term) := [
   (`MachLib.Real.natCast,       Unhygienic.run `((Nat.cast : ℕ → ℝ))),
   (`MachLib.Real.exp,           Unhygienic.run `(Real.exp)),
   (`MachLib.Real.log,           Unhygienic.run `(Real.log)),
+  (`MachLib.Real.sinh,          Unhygienic.run `(Real.sinh)),
+  (`MachLib.Real.cosh,          Unhygienic.run `(Real.cosh)),
+  (`MachLib.Real.tanh,          Unhygienic.run `(Real.tanh)),
+  (`MachLib.Real.u,             Unhygienic.run `((0 : ℝ))),
   (`MachLib.Real.HasDerivAt,    Unhygienic.run `(fun (f : ℝ → ℝ) (f' x : ℝ) => HasDerivAt f f' x)),
   (`MachLib.RealSet,            Unhygienic.run `((Set ℝ))),
   (`MachLib.Ioi,                Unhygienic.run `((fun a : ℝ => Set.Ioi a))),
@@ -128,7 +134,30 @@ def witnessRegistry : List (Name × TSyntax `term) := [
   (`MachLib.analytic_comp,       Unhygienic.run `(fun f g S T hg hmaps hf => hf.comp hg hmaps)),
   (`MachLib.analytic_one_div_pos, Unhygienic.run `(by simp only [one_div]; exact analyticOnNhd_inv.mono (fun x hx => ne_of_gt hx))),
   (`MachLib.analytic_log_pos,    Unhygienic.run `(MonogateEML.RealModel.analyticOnNhd_real_log_Ioi)),
-  (`MachLib.Real.HasDerivAt_inv, Unhygienic.run `(fun f a x hfx hf => by simpa [one_div, sq] using hf.inv hfx)) ]
+  (`MachLib.Real.HasDerivAt_inv, Unhygienic.run `(fun f a x hfx hf => by simpa [one_div, sq] using hf.inv hfx)),
+  -- hyperbolic batch (MachLibRealModelHyperbolic.lean)
+  (`MachLib.Real.sinh,           Unhygienic.run `(Real.sinh)),
+  (`MachLib.Real.cosh,           Unhygienic.run `(Real.cosh)),
+  (`MachLib.Real.tanh,           Unhygienic.run `(Real.tanh)),
+  (`MachLib.Real.cosh_pos,       Unhygienic.run `(Real.cosh_pos)),
+  (`MachLib.Real.cosh_ge_one,    Unhygienic.run `(Real.one_le_cosh)),
+  (`MachLib.Real.sinh_eq,        Unhygienic.run `(fun x => by rw [Real.sinh_eq]; norm_num)),
+  (`MachLib.Real.cosh_eq,        Unhygienic.run `(fun x => by rw [Real.cosh_eq]; norm_num)),
+  (`MachLib.Real.tanh_eq_sinh_div_cosh, Unhygienic.run `(fun x => Real.tanh_eq_sinh_div_cosh x)),
+  (`MachLib.Real.tanh_zero,      Unhygienic.run `(Real.tanh_zero)),
+  (`MachLib.Real.tanh_lt_one,    Unhygienic.run `(fun x => by
+    rw [Real.tanh_eq_sinh_div_cosh x, div_lt_one (Real.cosh_pos x)]; exact Real.sinh_lt_cosh x)),
+  (`MachLib.Real.tanh_neg,       Unhygienic.run `(fun x => Real.tanh_neg x)),
+  -- remaining certcom-footprint items: negation/congruence derivative rules, one more order
+  -- law, and the abstract unit-roundoff constant `u` (only constrained by `u_nonneg`, so any
+  -- nonnegative real witnesses it — `0` is the simplest choice)
+  (`MachLib.Real.HasDerivAt_neg,   Unhygienic.run `(fun f a x hf => hf.neg)),
+  (`MachLib.Real.HasDerivAt_of_eq, Unhygienic.run `(fun f g a x heq hf => by
+    rw [show f = g from funext heq] at hf; exact hf)),
+  (`MachLib.Real.mul_lt_mul_of_pos_right, Unhygienic.run `(fun {a b c} h hc => mul_lt_mul_of_pos_right h hc)),
+  (`MachLib.Real.one_div_nonneg_of_pos, Unhygienic.run `(fun {b} hb => le_of_lt (one_div_pos.mpr hb))),
+  (`MachLib.Real.u,              Unhygienic.run `((0 : ℝ))),
+  (`MachLib.Real.u_nonneg,       Unhygienic.run `(le_refl (0 : ℝ))) ]
 
 def mkMap : TermElabM (List (Name × Expr)) :=
   interpEntries.mapM (fun (n, s) => do return (n, ← elabTerm s none))
@@ -176,7 +205,7 @@ Anything trusted-but-unaccounted FAILS; a stale gap entry FAILS. So "trusted" (l
 "witnessed" (this file) can no longer silently diverge. -/
 
 /-- The ledger's trusted footprint (machlib `AxiomLedger.trustedFootprint`, pinned snapshot). -/
-def trustedFootprint : List Name := [`Classical.choice, `MachLib.IsAnalyticOnReals, `MachLib.Real, `MachLib.Real.HasDerivAt, `MachLib.Real.HasDerivAt_add, `MachLib.Real.HasDerivAt_comp, `MachLib.Real.HasDerivAt_const, `MachLib.Real.HasDerivAt_exp, `MachLib.Real.HasDerivAt_id, `MachLib.Real.HasDerivAt_inv, `MachLib.Real.HasDerivAt_log_pos, `MachLib.Real.HasDerivAt_mul, `MachLib.Real.HasDerivAt_sub, `MachLib.Real.HasDerivAt_unique, `MachLib.Real.addR, `MachLib.Real.add_assoc, `MachLib.Real.add_comm, `MachLib.Real.add_lt_add_left, `MachLib.Real.add_neg, `MachLib.Real.add_zero, `MachLib.Real.divR, `MachLib.Real.div_def, `MachLib.Real.exp, `MachLib.Real.exp_pos, `MachLib.Real.exp_surj, `MachLib.Real.leR, `MachLib.Real.le_iff_lt_or_eq, `MachLib.Real.ltR, `MachLib.Real.lt_irrefl_ax, `MachLib.Real.lt_total, `MachLib.Real.lt_trans_ax, `MachLib.Real.mulR, `MachLib.Real.mul_assoc, `MachLib.Real.mul_comm, `MachLib.Real.mul_distrib, `MachLib.Real.mul_inv, `MachLib.Real.mul_one_ax, `MachLib.Real.mul_pos, `MachLib.Real.natCast, `MachLib.Real.natCast_succ, `MachLib.Real.natCast_zero, `MachLib.Real.negR, `MachLib.Real.oneR, `MachLib.Real.one_div_pos_of_pos, `MachLib.Real.rolle_ct, `MachLib.Real.subR, `MachLib.Real.sub_def, `MachLib.Real.zeroR, `MachLib.Real.zero_lt_one_ax, `MachLib.Real.zero_ne_one_ax, `MachLib.analytic_add, `MachLib.analytic_comp, `MachLib.analytic_const, `MachLib.analytic_exp, `MachLib.analytic_id, `MachLib.analytic_log_pos, `MachLib.analytic_mul, `MachLib.analytic_one_div_pos, `MachLib.analytic_sub, `Quot.sound, `propext]
+def trustedFootprint : List Name := [`Classical.choice, `MachLib.IsAnalyticOnReals, `MachLib.Real, `MachLib.Real.HasDerivAt, `MachLib.Real.HasDerivAt_add, `MachLib.Real.HasDerivAt_comp, `MachLib.Real.HasDerivAt_const, `MachLib.Real.HasDerivAt_exp, `MachLib.Real.HasDerivAt_id, `MachLib.Real.HasDerivAt_inv, `MachLib.Real.HasDerivAt_log_pos, `MachLib.Real.HasDerivAt_mul, `MachLib.Real.HasDerivAt_sub, `MachLib.Real.HasDerivAt_unique, `MachLib.Real.addR, `MachLib.Real.add_assoc, `MachLib.Real.add_comm, `MachLib.Real.add_lt_add_left, `MachLib.Real.add_neg, `MachLib.Real.add_zero, `MachLib.Real.divR, `MachLib.Real.div_def, `MachLib.Real.exp, `MachLib.Real.exp_pos, `MachLib.Real.exp_surj, `MachLib.Real.leR, `MachLib.Real.le_iff_lt_or_eq, `MachLib.Real.ltR, `MachLib.Real.lt_irrefl_ax, `MachLib.Real.lt_total, `MachLib.Real.lt_trans_ax, `MachLib.Real.mulR, `MachLib.Real.mul_assoc, `MachLib.Real.mul_comm, `MachLib.Real.mul_distrib, `MachLib.Real.mul_inv, `MachLib.Real.mul_one_ax, `MachLib.Real.mul_pos, `MachLib.Real.natCast, `MachLib.Real.natCast_succ, `MachLib.Real.natCast_zero, `MachLib.Real.negR, `MachLib.Real.oneR, `MachLib.Real.one_div_pos_of_pos, `MachLib.Real.rolle_ct, `MachLib.Real.sinh, `MachLib.Real.cosh, `MachLib.Real.tanh, `MachLib.Real.cosh_pos, `MachLib.Real.cosh_ge_one, `MachLib.Real.sinh_eq, `MachLib.Real.cosh_eq, `MachLib.Real.tanh_eq_sinh_div_cosh, `MachLib.Real.tanh_zero, `MachLib.Real.tanh_lt_one, `MachLib.Real.tanh_neg, `MachLib.Real.HasDerivAt_neg, `MachLib.Real.HasDerivAt_of_eq, `MachLib.Real.mul_lt_mul_of_pos_right, `MachLib.Real.one_div_nonneg_of_pos, `MachLib.Real.u, `MachLib.Real.u_nonneg, `MachLib.Real.subR, `MachLib.Real.sub_def, `MachLib.Real.zeroR, `MachLib.Real.zero_lt_one_ax, `MachLib.Real.zero_ne_one_ax, `MachLib.analytic_add, `MachLib.analytic_comp, `MachLib.analytic_const, `MachLib.analytic_exp, `MachLib.analytic_id, `MachLib.analytic_log_pos, `MachLib.analytic_mul, `MachLib.analytic_one_div_pos, `MachLib.analytic_sub, `Quot.sound, `propext]
 
 /-- Standard Lean axioms — sound by construction, not witnessed here. -/
 def standardAxioms : List Name := [`propext, `Classical.choice, `Quot.sound]
