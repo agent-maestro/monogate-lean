@@ -1,5 +1,6 @@
+import Mathlib.Analysis.SpecialFunctions.Trigonometric.DerivHyp
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.Deriv
-import Mathlib.Data.Complex.Exponential
+import Mathlib.Analysis.Complex.Exponential
 
 /-!
 # `MachLib.Real` soundness witness — the hyperbolic axioms (`sinh`, `cosh`, `tanh`)

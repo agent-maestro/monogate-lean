@@ -1,9 +1,13 @@
+import Mathlib.Analysis.SpecialFunctions.Log.Base
 import MachLib
 import Mathlib.Analysis.SpecialFunctions.Exp
 import Mathlib.Analysis.Calculus.Deriv.Basic
 import Mathlib.Analysis.SpecialFunctions.Log.Deriv
 import Mathlib.Analysis.Calculus.Deriv.Inv
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.Deriv
+import Mathlib.Analysis.SpecialFunctions.Trigonometric.Arctan
+import Mathlib.Analysis.SpecialFunctions.Trigonometric.ArctanDeriv
+import Mathlib.Analysis.Real.Pi.Bounds
 import MonogateEML.MachLibRealModelRolle
 import MonogateEML.MachLibRealModelLog
 import MonogateEML.MachLibRealModelHyperbolic
@@ -64,6 +68,17 @@ def interpEntries : List (Name × TSyntax `term) := [
   (`MachLib.Real.cosh,          Unhygienic.run `(Real.cosh)),
   (`MachLib.Real.tanh,          Unhygienic.run `(Real.tanh)),
   (`MachLib.Real.u,             Unhygienic.run `((0 : ℝ))),
+  -- Trig / sqrt / pi block. MachLib's `sqrt` and Mathlib's `Real.sqrt` are BOTH totalised to 0
+  -- on negatives, so the interpretation is exact rather than merely agreeing on the domain.
+  (`MachLib.Real.sin,           Unhygienic.run `(Real.sin)),
+  (`MachLib.Real.cos,           Unhygienic.run `(Real.cos)),
+  (`MachLib.Real.tan,           Unhygienic.run `(Real.tan)),
+  (`MachLib.Real.pi,            Unhygienic.run `(Real.pi)),
+  (`MachLib.Real.sqrt,          Unhygienic.run `(Real.sqrt)),
+  (`MachLib.Real.atan,          Unhygienic.run `(Real.arctan)),
+  (`MachLib.Real.arcsin,        Unhygienic.run `(Real.arcsin)),
+  (`MachLib.Real.arccos,        Unhygienic.run `(Real.arccos)),
+  (`MachLib.Real.log10,         Unhygienic.run `(Real.logb 10)),
   (`MachLib.Real.HasDerivAt,    Unhygienic.run `(fun (f : ℝ → ℝ) (f' x : ℝ) => HasDerivAt f f' x)),
   (`MachLib.RealSet,            Unhygienic.run `((Set ℝ))),
   (`MachLib.Ioi,                Unhygienic.run `((fun a : ℝ => Set.Ioi a))),
@@ -88,7 +103,9 @@ def witnessRegistry : List (Name × TSyntax `term) := [
   (`MachLib.Real.add_assoc,      Unhygienic.run `(add_assoc)),
   (`MachLib.Real.add_zero,       Unhygienic.run `(add_zero)),
   (`MachLib.Real.add_neg,        Unhygienic.run `(fun a => add_neg_cancel a)),
-  (`MachLib.Real.add_lt_add_left, Unhygienic.run `(fun {a b} h c => add_lt_add_left h c)),
+  -- Mathlib v4.32 FLIPPED the sense of `add_lt_add_left`: it now yields `a + c < b + c`
+  -- (adding on the right), while MachLib's axiom adds on the left. Caught by this bridge.
+  (`MachLib.Real.add_lt_add_left, Unhygienic.run `(fun {a b} h c => by gcongr)),
   (`MachLib.Real.mul_comm,       Unhygienic.run `(mul_comm)),
   (`MachLib.Real.mul_assoc,      Unhygienic.run `(mul_assoc)),
   (`MachLib.Real.mul_one_ax,     Unhygienic.run `(mul_one)),
@@ -134,7 +151,9 @@ def witnessRegistry : List (Name × TSyntax `term) := [
   (`MachLib.analytic_comp,       Unhygienic.run `(fun f g S T hg hmaps hf => hf.comp hg hmaps)),
   (`MachLib.analytic_one_div_pos, Unhygienic.run `(by simp only [one_div]; exact analyticOnNhd_inv.mono (fun x hx => ne_of_gt hx))),
   (`MachLib.analytic_log_pos,    Unhygienic.run `(MonogateEML.RealModel.analyticOnNhd_real_log_Ioi)),
-  (`MachLib.Real.HasDerivAt_inv, Unhygienic.run `(fun f a x hfx hf => by simpa [one_div, sq] using hf.inv hfx)),
+  -- `Pi.inv_def` is needed since v4.32: Mathlib states this for the FUNCTION `c⁻¹`, and
+  -- without it simp leaves `f⁻¹` against MachLib's `fun y => 1 / f y` (plus an instance diamond).
+  (`MachLib.Real.HasDerivAt_inv, Unhygienic.run `(fun f a x hfx hf => by simpa [one_div, sq, Pi.inv_def] using hf.inv hfx)),
   -- hyperbolic batch (MachLibRealModelHyperbolic.lean)
   (`MachLib.Real.sinh,           Unhygienic.run `(Real.sinh)),
   (`MachLib.Real.cosh,           Unhygienic.run `(Real.cosh)),
@@ -157,6 +176,46 @@ def witnessRegistry : List (Name × TSyntax `term) := [
   (`MachLib.Real.mul_lt_mul_of_pos_right, Unhygienic.run `(fun {a b c} h hc => mul_lt_mul_of_pos_right h hc)),
   (`MachLib.Real.one_div_nonneg_of_pos, Unhygienic.run `(fun {b} hb => le_of_lt (one_div_pos.mpr hb))),
   (`MachLib.Real.u,              Unhygienic.run `((0 : ℝ))),
+  -- ── trig / pi / sqrt tranche (added 2026-09-02) ───────────────────────────────
+  (`MachLib.Real.sin_zero,       Unhygienic.run `(Real.sin_zero)),
+  (`MachLib.Real.cos_zero,       Unhygienic.run `(Real.cos_zero)),
+  (`MachLib.Real.sin_pi,         Unhygienic.run `(Real.sin_pi)),
+  (`MachLib.Real.cos_pi,         Unhygienic.run `(Real.cos_pi)),
+  (`MachLib.Real.sin_neg,        Unhygienic.run `(Real.sin_neg)),
+  (`MachLib.Real.cos_neg,        Unhygienic.run `(Real.cos_neg)),
+  (`MachLib.Real.sin_add,        Unhygienic.run `(Real.sin_add)),
+  (`MachLib.Real.cos_add,        Unhygienic.run `(Real.cos_add)),
+  (`MachLib.Real.pi_pos,         Unhygienic.run `(Real.pi_pos)),
+  (`MachLib.Real.atan_zero,      Unhygienic.run `(Real.arctan_zero)),
+  (`MachLib.Real.sqrt_nonneg,    Unhygienic.run `(Real.sqrt_nonneg)),
+  (`MachLib.Real.HasDerivAt_sin, Unhygienic.run `(Real.hasDerivAt_sin)),
+  (`MachLib.Real.HasDerivAt_cos, Unhygienic.run `(Real.hasDerivAt_cos)),
+  -- MachLib writes `1 + 1` where Mathlib writes `2`, and `x * x` where Mathlib writes `x ^ 2`;
+  -- these witnesses close exactly that gap and nothing else.
+  (`MachLib.Real.pi_gt_one,      Unhygienic.run `(by linarith [Real.pi_gt_three])),
+  (`MachLib.Real.sin_pi_div_two, Unhygienic.run `(by norm_num [Real.sin_pi_div_two])),
+  (`MachLib.Real.cos_pi_div_two, Unhygienic.run `(by norm_num [Real.cos_pi_div_two])),
+  (`MachLib.Real.pythagorean,    Unhygienic.run `(fun x => by simpa [sq] using Real.sin_sq_add_cos_sq x)),
+  (`MachLib.Real.sin_periodic,   Unhygienic.run `(fun x => by norm_num [Real.sin_add_two_pi])),
+  (`MachLib.Real.HasDerivAt_atan, Unhygienic.run `(fun x => by simpa [sq] using Real.hasDerivAt_arctan x)),
+  (`MachLib.Real.sqrt_sq_nonneg, Unhygienic.run `(fun x hx => Real.mul_self_sqrt hx)),
+  (`MachLib.Real.tan_def,        Unhygienic.run `(fun x _ => Real.tan_eq_sin_div_cos x)),
+  (`MachLib.Real.sin_one_pos,    Unhygienic.run `(Real.sin_pos_of_pos_of_lt_pi one_pos (by linarith [Real.pi_gt_three]))),
+  (`MachLib.Real.sin_pos_of_pos_lt_pi_div_two,
+     Unhygienic.run `(fun x h0 hp => Real.sin_pos_of_pos_of_lt_pi h0 (by nlinarith [Real.pi_pos]))),
+  (`MachLib.Real.archimedean,    Unhygienic.run `(fun x => exists_nat_gt x)),
+  (`MachLib.Real.div_zero,       Unhygienic.run `(div_zero)),
+  (`MachLib.Real.exp_lt,         Unhygienic.run `(fun h => Real.exp_lt_exp.mpr h)),
+  (`MachLib.Real.one_add_le_exp, Unhygienic.run `(fun x => by simpa [add_comm] using Real.add_one_le_exp x)),
+  (`MachLib.Real.exp_gt_one_plus_self,
+     Unhygienic.run `(fun x hx => by simpa [add_comm] using Real.add_one_lt_exp (ne_of_gt hx))),
+  (`MachLib.Real.neg_one_lt_tanh, Unhygienic.run `(Real.neg_one_lt_tanh)),
+  (`MachLib.Real.sqrt_le_of_le_sq,
+     Unhygienic.run `(fun {z y} hz h => by
+        rw [show z = Real.sqrt (z * z) from (Real.sqrt_mul_self hz).symm]; exact Real.sqrt_le_sqrt h)),
+  (`MachLib.Real.le_sqrt_of_sq_le,
+     Unhygienic.run `(fun {z y} hz h => by
+        rw [show z = Real.sqrt (z * z) from (Real.sqrt_mul_self hz).symm]; exact Real.sqrt_le_sqrt h)),
   (`MachLib.Real.u_nonneg,       Unhygienic.run `(le_refl (0 : ℝ))) ]
 
 def mkMap : TermElabM (List (Name × Expr)) :=
@@ -205,22 +264,66 @@ Anything trusted-but-unaccounted FAILS; a stale gap entry FAILS. So "trusted" (l
 "witnessed" (this file) can no longer silently diverge. -/
 
 /-- The ledger's trusted footprint (machlib `AxiomLedger.trustedFootprint`, pinned snapshot). -/
-def trustedFootprint : List Name := [`Classical.choice, `MachLib.IsAnalyticOnReals, `MachLib.Real, `MachLib.Real.HasDerivAt, `MachLib.Real.HasDerivAt_add, `MachLib.Real.HasDerivAt_comp, `MachLib.Real.HasDerivAt_const, `MachLib.Real.HasDerivAt_exp, `MachLib.Real.HasDerivAt_id, `MachLib.Real.HasDerivAt_inv, `MachLib.Real.HasDerivAt_log_pos, `MachLib.Real.HasDerivAt_mul, `MachLib.Real.HasDerivAt_sub, `MachLib.Real.HasDerivAt_unique, `MachLib.Real.addR, `MachLib.Real.add_assoc, `MachLib.Real.add_comm, `MachLib.Real.add_lt_add_left, `MachLib.Real.add_neg, `MachLib.Real.add_zero, `MachLib.Real.divR, `MachLib.Real.div_def, `MachLib.Real.exp, `MachLib.Real.exp_pos, `MachLib.Real.exp_surj, `MachLib.Real.leR, `MachLib.Real.le_iff_lt_or_eq, `MachLib.Real.ltR, `MachLib.Real.lt_irrefl_ax, `MachLib.Real.lt_total, `MachLib.Real.lt_trans_ax, `MachLib.Real.mulR, `MachLib.Real.mul_assoc, `MachLib.Real.mul_comm, `MachLib.Real.mul_distrib, `MachLib.Real.mul_inv, `MachLib.Real.mul_one_ax, `MachLib.Real.mul_pos, `MachLib.Real.natCast, `MachLib.Real.natCast_succ, `MachLib.Real.natCast_zero, `MachLib.Real.negR, `MachLib.Real.oneR, `MachLib.Real.one_div_pos_of_pos, `MachLib.Real.rolle_ct, `MachLib.Real.sinh, `MachLib.Real.cosh, `MachLib.Real.tanh, `MachLib.Real.cosh_pos, `MachLib.Real.cosh_ge_one, `MachLib.Real.sinh_eq, `MachLib.Real.cosh_eq, `MachLib.Real.tanh_eq_sinh_div_cosh, `MachLib.Real.tanh_zero, `MachLib.Real.tanh_lt_one, `MachLib.Real.tanh_neg, `MachLib.Real.HasDerivAt_neg, `MachLib.Real.HasDerivAt_of_eq, `MachLib.Real.mul_lt_mul_of_pos_right, `MachLib.Real.one_div_nonneg_of_pos, `MachLib.Real.u, `MachLib.Real.u_nonneg, `MachLib.Real.subR, `MachLib.Real.sub_def, `MachLib.Real.zeroR, `MachLib.Real.zero_lt_one_ax, `MachLib.Real.zero_ne_one_ax, `MachLib.analytic_add, `MachLib.analytic_comp, `MachLib.analytic_const, `MachLib.analytic_exp, `MachLib.analytic_id, `MachLib.analytic_log_pos, `MachLib.analytic_mul, `MachLib.analytic_one_div_pos, `MachLib.analytic_sub, `Quot.sound, `propext]
+def trustedFootprint : List Name := [`Certcom.floatOfR, `Certcom.realToR, `Certcom.real_abs_eps, `Certcom.real_abs_rounds, `Certcom.real_acos_rounds, `Certcom.real_asin_rounds, `Certcom.real_atan_eps, `Certcom.real_atan_rounds, `Certcom.real_cos_eps, `Certcom.real_cos_rounds, `Certcom.real_cosh_rounds, `Certcom.real_exp_rounds, `Certcom.real_fpbridge, `Certcom.real_log10_rounds, `Certcom.real_log_rounds, `Certcom.real_round_bounds, `Certcom.real_sin_eps, `Certcom.real_sin_rounds, `Certcom.real_sinh_rounds, `Certcom.real_sqrt_rounds, `Certcom.real_tan_rounds, `Certcom.real_tanh_rounds, `Classical.choice, `MachLib.IsAnalyticOnReals, `MachLib.Real, `MachLib.Real.HasDerivAt, `MachLib.Real.HasDerivAt_add, `MachLib.Real.HasDerivAt_arccos, `MachLib.Real.HasDerivAt_arcsin, `MachLib.Real.HasDerivAt_atan, `MachLib.Real.HasDerivAt_comp, `MachLib.Real.HasDerivAt_congr, `MachLib.Real.HasDerivAt_const, `MachLib.Real.HasDerivAt_cos, `MachLib.Real.HasDerivAt_exp, `MachLib.Real.HasDerivAt_id, `MachLib.Real.HasDerivAt_inv, `MachLib.Real.HasDerivAt_log_pos, `MachLib.Real.HasDerivAt_mul, `MachLib.Real.HasDerivAt_neg, `MachLib.Real.HasDerivAt_of_eps_delta, `MachLib.Real.HasDerivAt_of_eq, `MachLib.Real.HasDerivAt_sin, `MachLib.Real.HasDerivAt_sub, `MachLib.Real.HasDerivAt_unique, `MachLib.Real.addR, `MachLib.Real.add_assoc, `MachLib.Real.add_comm, `MachLib.Real.add_lt_add_left, `MachLib.Real.add_neg, `MachLib.Real.add_zero, `MachLib.Real.arccos, `MachLib.Real.archimedean, `MachLib.Real.arcsin, `MachLib.Real.atan, `MachLib.Real.atan_zero, `MachLib.Real.cos, `MachLib.Real.cos_add, `MachLib.Real.cos_neg, `MachLib.Real.cos_pi, `MachLib.Real.cos_pi_div_two, `MachLib.Real.cos_zero, `MachLib.Real.cosh, `MachLib.Real.cosh_eq, `MachLib.Real.cosh_ge_one, `MachLib.Real.cosh_pos, `MachLib.Real.divR, `MachLib.Real.div_def, `MachLib.Real.div_zero, `MachLib.Real.exp, `MachLib.Real.exp_add, `MachLib.Real.exp_gt_one_plus_self, `MachLib.Real.exp_lt, `MachLib.Real.exp_pos, `MachLib.Real.exp_surj, `MachLib.Real.exp_zero, `MachLib.Real.hasDerivAt_continuousAt, `MachLib.Real.leR, `MachLib.Real.le_iff_lt_or_eq, `MachLib.Real.le_sqrt_of_sq_le, `MachLib.Real.log10, `MachLib.Real.log10_def, `MachLib.Real.ltR, `MachLib.Real.lt_irrefl_ax, `MachLib.Real.lt_total, `MachLib.Real.lt_trans_ax, `MachLib.Real.mulR, `MachLib.Real.mul_assoc, `MachLib.Real.mul_comm, `MachLib.Real.mul_distrib, `MachLib.Real.mul_inv, `MachLib.Real.mul_lt_mul_of_pos_right, `MachLib.Real.mul_one_ax, `MachLib.Real.mul_pos, `MachLib.Real.natCast, `MachLib.Real.natCast_succ, `MachLib.Real.natCast_zero, `MachLib.Real.negR, `MachLib.Real.neg_one_lt_tanh, `MachLib.Real.oneR, `MachLib.Real.one_add_le_exp, `MachLib.Real.one_div_nonneg_of_pos, `MachLib.Real.one_div_pos_of_pos, `MachLib.Real.pi, `MachLib.Real.pi_gt_one, `MachLib.Real.pi_pos, `MachLib.Real.pythagorean, `MachLib.Real.rolle_ct, `MachLib.Real.sin, `MachLib.Real.sin_add, `MachLib.Real.sin_neg, `MachLib.Real.sin_one_pos, `MachLib.Real.sin_periodic, `MachLib.Real.sin_pi, `MachLib.Real.sin_pi_div_two, `MachLib.Real.sin_pos_of_pos_lt_pi_div_two, `MachLib.Real.sin_zero, `MachLib.Real.sinh, `MachLib.Real.sinh_eq, `MachLib.Real.sqrt, `MachLib.Real.sqrt_le_of_le_sq, `MachLib.Real.sqrt_nonneg, `MachLib.Real.sqrt_sq_nonneg, `MachLib.Real.subR, `MachLib.Real.sub_def, `MachLib.Real.sup_exists, `MachLib.Real.tan, `MachLib.Real.tan_def, `MachLib.Real.tanh, `MachLib.Real.tanh_eq_sinh_div_cosh, `MachLib.Real.tanh_lt_one, `MachLib.Real.u, `MachLib.Real.u_nonneg, `MachLib.Real.zeroR, `MachLib.Real.zero_lt_one_ax, `MachLib.Real.zero_ne_one_ax, `MachLib.analytic_add, `MachLib.analytic_comp, `MachLib.analytic_const, `MachLib.analytic_exp, `MachLib.analytic_finite_zeros_compact, `MachLib.analytic_id, `MachLib.analytic_log_pos, `MachLib.analytic_mul, `MachLib.analytic_ne_zero_nbhd, `MachLib.analytic_one_div_pos, `MachLib.analytic_sub, `Quot.sound, `propext]
 
 /-- Standard Lean axioms — sound by construction, not witnessed here. -/
 def standardAxioms : List Name := [`propext, `Classical.choice, `Quot.sound]
 
 /-- Carrier/predicate constants — interpretation-map entries (`Real ↦ ℝ`, `HasDerivAt` /
 `IsAnalyticOnReals ↦` Mathlib's), not propositions to witness. -/
-def mappedConstants : List Name := [`MachLib.Real, `MachLib.Real.HasDerivAt, `MachLib.IsAnalyticOnReals]
+def mappedConstants : List Name := [`MachLib.Real, `MachLib.Real.HasDerivAt, `MachLib.IsAnalyticOnReals,
+  -- function symbols: interpreted in `interpEntries`, not propositions to witness
+  `MachLib.Real.sin, `MachLib.Real.cos, `MachLib.Real.tan, `MachLib.Real.pi, `MachLib.Real.sqrt,
+  `MachLib.Real.atan, `MachLib.Real.arcsin, `MachLib.Real.arccos, `MachLib.Real.log10]
+
+/-- **Float-bridge axioms — a different kind of trust, and Mathlib's `ℝ` cannot discharge them.**
+
+Everything else in `trustedFootprint` is a statement *about `ℝ`*, so a Mathlib term either inhabits
+it or the axiom is misstated. These are not. They relate `Certcom`'s concrete floating-point
+evaluation to `ℝ` — that a machine `exp` rounds to within `eps` of `Real.exp`, that `floatOfR`
+round-trips, and so on. No amount of Mathlib witnesses them, because Mathlib has no IEEE-754
+semantics: they are claims about an implementation, validated by MEASUREMENT (the certifier's
+harness and the hardware anchors), not by a model.
+
+Listing them here rather than in `witnessGap` keeps the two kinds of trust apart. "Zero unmodeled
+axioms" is a claim about the mathematical footprint; these 22 are the empirical footprint, and a
+reader of the manifest should see that boundary rather than have it averaged away. -/
+def bridgeAxioms : List Name := [`Certcom.floatOfR, `Certcom.realToR, `Certcom.real_abs_eps, `Certcom.real_abs_rounds, `Certcom.real_acos_rounds, `Certcom.real_asin_rounds, `Certcom.real_atan_eps, `Certcom.real_atan_rounds, `Certcom.real_cos_eps, `Certcom.real_cos_rounds, `Certcom.real_cosh_rounds, `Certcom.real_exp_rounds, `Certcom.real_fpbridge, `Certcom.real_log10_rounds, `Certcom.real_log_rounds, `Certcom.real_round_bounds, `Certcom.real_sin_eps, `Certcom.real_sin_rounds, `Certcom.real_sinh_rounds, `Certcom.real_sqrt_rounds, `Certcom.real_tan_rounds, `Certcom.real_tanh_rounds]
 
 /-- Known-unwitnessed trusted axioms + machine-readable reason. CI-visible; shrinks as witnesses
 are added. Trusted-but-unaccounted (not here, not registered, not standard/mapped) FAILS. -/
-def witnessGap : List (Name × String) := []
+def witnessGap : List (Name × String) := [
+  (`MachLib.Real.hasDerivAt_continuousAt,
+    "MachLib's `ContinuousAt` is its own transparent epsilon-delta def (IntermediateValue.lean:21) \
+over MachLib's `abs`, not Mathlib's filter-based `ContinuousAt`. Witnessing it needs both \
+interpreted and the epsilon-delta form derived from `HasDerivAt.continuousAt` -- a real proof, \
+not a one-line term. Witnessable; not yet witnessed."),
+  (`MachLib.Real.HasDerivAt_of_eps_delta,
+    "Same reason, other direction: the epsilon-delta CHARACTERISATION of the derivative. Needs \
+MachLib's `abs` interpreted and Mathlib's `hasDerivAt_iff_tendsto` unfolded. Witnessable."),
+  (`MachLib.Real.HasDerivAt_congr,
+    "Local-equality congruence. Mathlib has `Filter.EventuallyEq.hasDerivAt_iff`, but the \
+hypothesis is stated epsilon-delta, so it needs the same `abs`/neighbourhood bridge."),
+  (`MachLib.Real.HasDerivAt_arcsin,
+    "Mathlib's `Real.hasDerivAt_arcsin` takes `x != -1` and `x != 1`; MachLib states `|x| < 1`. \
+The implication is routine but needs MachLib's `abs` interpreted first."),
+  (`MachLib.Real.HasDerivAt_arccos, "As `HasDerivAt_arcsin`."),
+  (`MachLib.Real.sup_exists,
+    "Least-upper-bound property. Mathlib has `Real.exists_isLUB`; the statement quantifies over \
+MachLib's `BoundedAbove` def, which must be interpreted before the witness typechecks."),
+  (`MachLib.analytic_finite_zeros_compact,
+    "An analytic function not identically zero has finitely many zeros on a compact. Mathlib has \
+this via `AnalyticOnNhd` + `Set.Finite`; the statement quantifies over MachLib's own \
+`IsAnalyticOnReals`, which is a MAPPED carrier, so the witness needs that unfolded. Witnessable."),
+  (`MachLib.analytic_ne_zero_nbhd, "As `analytic_finite_zeros_compact` (isolated-zeros side)."),
+  (`MachLib.Real.log10_def,
+    "`log10` is interpreted as `Real.logb 10`; the axiom asserts `exp (logb 10 x * log 10) = x` \
+for `x > 0`, which is `Real.exp_log` after `Real.logb` unfolding. Routine; not yet done.")
+]
 
 run_cmd Command.liftTermElabM do
   let registered := witnessRegistry.map Prod.fst
-  let accounted := registered ++ standardAxioms ++ mappedConstants ++ witnessGap.map Prod.fst
+  let accounted := registered ++ standardAxioms ++ mappedConstants ++ bridgeAxioms ++ witnessGap.map Prod.fst
   let unaccounted := trustedFootprint.filter (fun a => !(accounted.contains a))
   unless unaccounted.isEmpty do
     logError m!"AxiomWitnessBridge: {unaccounted.length} trusted axiom(s) UNACCOUNTED \
@@ -229,7 +332,7 @@ run_cmd Command.liftTermElabM do
   unless staleGap.isEmpty do
     logError m!"AxiomWitnessBridge: stale witnessGap entr(y/ies) no longer trusted: {staleGap}"
   logInfo m!"AxiomWitnessBridge coverage: {registered.length} witnessed + {standardAxioms.length} \
-standard + {mappedConstants.length} mapped + {witnessGap.length} tracked-gap = full accounting of \
-{trustedFootprint.length} trusted axioms."
+standard + {mappedConstants.length} mapped + {bridgeAxioms.length} float-bridge + \
+{witnessGap.length} tracked-gap, against {trustedFootprint.length} trusted axioms."
 
 end AxiomWitnessBridge

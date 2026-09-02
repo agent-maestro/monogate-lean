@@ -4,8 +4,8 @@ import MonogateEML.InfiniteZerosBarrier
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.Basic
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.Bounds
 import Mathlib.Analysis.SpecialFunctions.Pow.Real
-import Mathlib.Data.Complex.Exponential
-import Mathlib.Data.Real.Pi.Bounds
+import Mathlib.Analysis.Complex.Exponential
+import Mathlib.Analysis.Real.Pi.Bounds
 
 /-!
 # `sin ∉ EML_k` for fixed small `k` — direct case analysis
