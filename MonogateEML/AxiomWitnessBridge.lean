@@ -39,6 +39,25 @@ verbatim-inhabit its interpreted type.
 -- enough for it once the trig/sqrt block is included.
 set_option maxRecDepth 100000
 
+/-- **Half of the last remaining gap**, discharged and named so the next agent does not have to
+rediscover that it is a separate obligation.
+
+`analytic_finite_zeros_compact` concludes `RealSetFinite`, which is NOT `Set.Finite`: MachLib
+defines it as a bound on the length of every `Nodup` list drawn from the set
+(`AnalyticFiniteZeros.lean:70`). So witnessing that axiom needs the analysis (zeros of a
+not-identically-zero analytic function on a compact are finite) AND this conversion. Only the
+former is still open; feed its `Set.Finite` to this lemma and the witness closes. -/
+theorem realSetFinite_of_finite {S : Set ℝ} (hS : S.Finite) :
+    ∃ n : ℕ, ∀ l : List ℝ, l.Nodup → (∀ x ∈ l, x ∈ S) → l.length ≤ n := by
+  classical
+  refine ⟨hS.toFinset.card, fun l hnd hmem => ?_⟩
+  have hsub : l.toFinset ⊆ hS.toFinset := by
+    intro x hx
+    simp only [List.mem_toFinset] at hx
+    simpa using hmem x hx
+  calc l.length = l.toFinset.card := (List.toFinset_card_of_nodup hnd).symm
+    _ ≤ hS.toFinset.card := Finset.card_le_card hsub
+
 open Lean Meta Elab Command Term
 
 namespace AxiomWitnessBridge
@@ -367,14 +386,18 @@ def bridgeAxioms : List Name := [`Certcom.floatOfR, `Certcom.realToR, `Certcom.r
 are added. Trusted-but-unaccounted (not here, not registered, not standard/mapped) FAILS. -/
 def witnessGap : List (Name × String) := [
   (`MachLib.analytic_finite_zeros_compact,
-    "The last one, and genuinely non-trivial for TWO reasons, only one of which is the analysis. \
-(1) Mathlib has the isolated-zeros ingredients (AnalyticAt.locally_ne_zero, IsolatedZeros.lean:108) \
-but not a packaged finite-zeros-on-a-compact statement for a real interval; it needs isolated zeros \
-plus a finite subcover of Icc a b. (2) MachLib RealSetFinite is NOT Set.Finite -- it is \
-exists n, every Nodup list drawn from the set has length <= n (AnalyticFiniteZeros.lean:70). So even \
-with the analysis in hand there is a second bridging step from Set.Finite to that list-length bound. \
-Nobody had recorded (2); it is why this gap outlived the other eight.")
+    "The last gap, and it is ONE obligation now, not two. The conversion half is done and named: \
+`realSetFinite_of_finite` (this file) turns a `Set.Finite` into MachLib's `RealSetFinite`, which is \
+a Nodup-list-length bound rather than `Set.Finite` (AnalyticFiniteZeros.lean:70) -- a second \
+obligation nobody had recorded. What remains is purely the analysis: zeros of an analytic function \
+on `Icc a b` that is not identically zero are finite. Mathlib has codiscrete-zeros machinery \
+(`AnalyticOnNhd.preimage_mem_codiscreteWithin`, IsolatedZeros.lean:346; \
+`codiscrete_setOf_analyticOrderAt_eq_zero`, Order.lean:632) but applying it needs a CONNECTED OPEN \
+superset of `Icc a b`, which must be built from the pointwise `AnalyticAt` neighbourhoods -- \
+`AnalyticOnNhd f (Icc a b)` gives analyticity at each point, not on an open set. That construction \
+is the real cost and is why this one outlived the other eight.")
 ]
+
 
 
 
