@@ -1,5 +1,6 @@
 import Mathlib.Analysis.SpecialFunctions.Log.Base
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.InverseDeriv
+import Mathlib.Analysis.Analytic.IsolatedZeros
 import MachLib
 import Mathlib.Analysis.SpecialFunctions.Exp
 import Mathlib.Analysis.Calculus.Deriv.Basic
@@ -95,6 +96,8 @@ def interpEntries : List (Name × TSyntax `term) := [
   (`MachLib.Real.HasDerivAt,    Unhygienic.run `(fun (f : ℝ → ℝ) (f' x : ℝ) => HasDerivAt f f' x)),
   (`MachLib.RealSet,            Unhygienic.run `((Set ℝ))),
   (`MachLib.Ioi,                Unhygienic.run `((fun a : ℝ => Set.Ioi a))),
+  (`MachLib.Icc,                Unhygienic.run `((fun a b : ℝ => Set.Icc a b))),
+  (`MachLib.Ioo,                Unhygienic.run `((fun a b : ℝ => Set.Ioo a b))),
   (`MachLib.IsAnalyticOnReals,  Unhygienic.run `((fun (f : ℝ → ℝ) (S : Set ℝ) => AnalyticOnNhd ℝ f S))) ]
 
 /-- Witness registry: MachLib axiom ↦ a Mathlib term claimed to inhabit its interpreted type.
@@ -272,6 +275,20 @@ def witnessRegistry : List (Name × TSyntax `term) := [
      refine ⟨δ, hδ, fun {y} hy => ?_⟩
      have hy' : |y - x| < δ := by simpa [Real.dist_eq] using hy
      simpa [Real.norm_eq_abs, mul_comm f' (y - x)] using H y hy')),
+  -- Confirms the gap reason rewritten in f60d3090: this axiom NEVER uses analyticity. The
+  -- witness takes `AnalyticAt -> ContinuousAt` and then works entirely from continuity, which
+  -- is why it is far cheaper than the `analytic_finite_zeros_compact` it was once filed under.
+  (`MachLib.analytic_ne_zero_nbhd, Unhygienic.run `(fun G a b x hG hax hxb hGx => by
+     have hxmem : x ∈ Set.Icc a b := ⟨le_of_lt hax, le_of_lt hxb⟩
+     have hcont : ContinuousAt G x := (hG x hxmem).continuousAt
+     have hne : ∀ᶠ y in nhds x, G y ≠ 0 := hcont.eventually_ne hGx
+     rw [Metric.eventually_nhds_iff] at hne
+     obtain ⟨δ, hδ, H⟩ := hne
+     refine ⟨max a (x - δ/2), min b (x + δ/2), le_max_left _ _, min_le_left _ _,
+             max_lt hax (by linarith), lt_min hxb (by linarith), fun y h1 h2 => ?_⟩
+     have hl : x - δ/2 < y := lt_of_le_of_lt (le_max_right _ _) h1
+     have hr : y < x + δ/2 := lt_of_lt_of_le h2 (min_le_right _ _)
+     exact H (by rw [Real.dist_eq, abs_lt]; constructor <;> linarith))),
   (`MachLib.Real.u_nonneg,       Unhygienic.run `(le_refl (0 : ℝ))) ]
 
 def mkMap : TermElabM (List (Name × Expr)) :=
@@ -350,16 +367,15 @@ def bridgeAxioms : List Name := [`Certcom.floatOfR, `Certcom.realToR, `Certcom.r
 are added. Trusted-but-unaccounted (not here, not registered, not standard/mapped) FAILS. -/
 def witnessGap : List (Name × String) := [
   (`MachLib.analytic_finite_zeros_compact,
-    "An analytic function not identically zero has finitely many zeros on a compact. Mathlib has \
-the ingredients (`AnalyticAt.locally_ne_zero`, IsolatedZeros.lean:108) but NOT the packaged \
-statement: the derivation is isolated-zeros + a finite subcover of `Icc a b`, plus interpreting \
-MachLib's `Icc`/`Ioo`/`RealSetFinite`. Witnessable, and the only genuinely non-trivial one left."),
-  (`MachLib.analytic_ne_zero_nbhd,
-    "Looks like the isolated-zeros twin of the above, but is NOT: read the statement and it never \
-uses analyticity. `G x != 0` plus CONTINUITY already gives a punctured interval where `G != 0`, \
-so the witness is openness of `{y | G y != 0}`, not `locally_ne_zero`. Blocked only on \
-interpreting MachLib's `Icc`/`Ioo`. Cheaper than it looks -- do this one first.")
+    "The last one, and genuinely non-trivial for TWO reasons, only one of which is the analysis. \
+(1) Mathlib has the isolated-zeros ingredients (AnalyticAt.locally_ne_zero, IsolatedZeros.lean:108) \
+but not a packaged finite-zeros-on-a-compact statement for a real interval; it needs isolated zeros \
+plus a finite subcover of Icc a b. (2) MachLib RealSetFinite is NOT Set.Finite -- it is \
+exists n, every Nodup list drawn from the set has length <= n (AnalyticFiniteZeros.lean:70). So even \
+with the analysis in hand there is a second bridging step from Set.Finite to that list-length bound. \
+Nobody had recorded (2); it is why this gap outlived the other eight.")
 ]
+
 
 
 
