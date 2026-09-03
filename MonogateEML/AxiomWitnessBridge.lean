@@ -1,4 +1,5 @@
 import Mathlib.Analysis.SpecialFunctions.Log.Base
+import Mathlib.Analysis.SpecialFunctions.Trigonometric.InverseDeriv
 import MachLib
 import Mathlib.Analysis.SpecialFunctions.Exp
 import Mathlib.Analysis.Calculus.Deriv.Basic
@@ -32,6 +33,10 @@ under the pinned Mathlib rev, this file goes red.
 Building this file IS the check: `logError` on any registered axiom whose witness fails to
 verbatim-inhabit its interpreted type.
 -/
+
+-- The registry is a long list literal; the default elaborator recursion depth is not
+-- enough for it once the trig/sqrt block is included.
+set_option maxRecDepth 100000
 
 open Lean Meta Elab Command Term
 
@@ -79,6 +84,14 @@ def interpEntries : List (Name × TSyntax `term) := [
   (`MachLib.Real.arcsin,        Unhygienic.run `(Real.arcsin)),
   (`MachLib.Real.arccos,        Unhygienic.run `(Real.arccos)),
   (`MachLib.Real.log10,         Unhygienic.run `(Real.logb 10)),
+  -- `abs` and `BoundedAbove` are MachLib `def`s, not axioms, but they appear inside axiom TYPES
+  -- (`|x| < 1` hypotheses, the sup axiom's bound), so they must be interpreted before those
+  -- axioms can be witnessed at all. Four of the nine gaps were blocked on exactly this.
+  (`MachLib.Real.abs,           Unhygienic.run `((fun x : ℝ => |x|))),
+  (`MachLib.Real.BoundedAbove,  Unhygienic.run `((fun p : ℝ → Prop => ∃ M : ℝ, ∀ x : ℝ, p x → x ≤ M))),
+  -- MachLib's `ContinuousAt` is its OWN transparent epsilon-delta def, not Mathlib's filter one.
+  (`MachLib.Real.ContinuousAt,  Unhygienic.run `((fun (f : ℝ → ℝ) (x : ℝ) =>
+     ∀ ε : ℝ, 0 < ε → ∃ δ : ℝ, 0 < δ ∧ ∀ y : ℝ, |y - x| < δ → |f y - f x| < ε))),
   (`MachLib.Real.HasDerivAt,    Unhygienic.run `(fun (f : ℝ → ℝ) (f' x : ℝ) => HasDerivAt f f' x)),
   (`MachLib.RealSet,            Unhygienic.run `((Set ℝ))),
   (`MachLib.Ioi,                Unhygienic.run `((fun a : ℝ => Set.Ioi a))),
@@ -216,6 +229,49 @@ def witnessRegistry : List (Name × TSyntax `term) := [
   (`MachLib.Real.le_sqrt_of_sq_le,
      Unhygienic.run `(fun {z y} hz h => by
         rw [show z = Real.sqrt (z * z) from (Real.sqrt_mul_self hz).symm]; exact Real.sqrt_le_sqrt h)),
+  -- ── gap closures, second pass (2026-09-02) ────────────────────────────────────
+  (`MachLib.Real.HasDerivAt_arcsin, Unhygienic.run `(fun x hx => by
+     obtain ⟨h1, h2⟩ := abs_lt.mp hx
+     simpa [sq] using Real.hasDerivAt_arcsin (ne_of_gt h1) (ne_of_lt h2))),
+  (`MachLib.Real.HasDerivAt_arccos, Unhygienic.run `(fun x hx => by
+     obtain ⟨h1, h2⟩ := abs_lt.mp hx
+     simpa [sq] using Real.hasDerivAt_arccos (ne_of_gt h1) (ne_of_lt h2))),
+  (`MachLib.Real.log10_def, Unhygienic.run `(fun x hx => by
+     rw [show ((10:ℕ):ℝ) = (10:ℝ) by norm_num, Real.logb,
+         div_mul_cancel₀ _ (by norm_num : Real.log (10:ℝ) ≠ 0)]
+     exact Real.exp_log hx)),
+  (`MachLib.Real.sup_exists, Unhygienic.run `(fun p hne hbd => by
+     obtain ⟨M, hM⟩ := hbd
+     obtain ⟨w, hw⟩ := hne
+     obtain ⟨t, ht⟩ := Real.exists_isLUB (s := {x | p x}) ⟨w, hw⟩ ⟨M, fun y hy => hM y hy⟩
+     exact ⟨t, fun x hx => ht.1 hx, fun s' hs' => ht.2 hs'⟩)),
+  -- ── epsilon-delta tranche: all three were blocked on MachLib's own `abs` / `ContinuousAt`
+  -- defs being uninterpreted, NOT on the analysis. `HasDerivAt` is fully opaque in MachLib, so
+  -- these are the axioms that tie it to a real derivative -- worth witnessing precisely because
+  -- an opaque predicate is where a misstatement would never surface from inside the corpus.
+  (`MachLib.Real.hasDerivAt_continuousAt, Unhygienic.run `(fun {f f' x} h ε hε => by
+     obtain ⟨δ, hδ, H⟩ := Metric.continuousAt_iff.mp h.continuousAt ε hε
+     exact ⟨δ, hδ, fun y hy => by
+       simpa [Real.dist_eq] using H (by simpa [Real.dist_eq] using hy)⟩)),
+  (`MachLib.Real.HasDerivAt_congr, Unhygienic.run `(fun f g a x h hf => by
+     obtain ⟨δ, hδ, H⟩ := h
+     have heq : f =ᶠ[nhds x] g := by
+       have : ∀ᶠ y in nhds x, f y = g y := by
+         rw [Metric.eventually_nhds_iff]
+         exact ⟨δ, hδ, fun {y} hy => H y (by simpa [Real.dist_eq] using hy)⟩
+       exact this
+     exact heq.hasDerivAt_iff.mp hf)),
+  -- NOTE: `rw [hasDerivAt_iff_isLittleO]` works standalone but NOT here — after the
+  -- interpretation substitution the goal is a beta-redex that `rw` will not see through.
+  -- Going through `.mpr` is term-directed and tolerates it.
+  (`MachLib.Real.HasDerivAt_of_eps_delta, Unhygienic.run `(fun {f f' x} h => by
+     refine hasDerivAt_iff_isLittleO.mpr (Asymptotics.isLittleO_iff.mpr ?_)
+     intro c hc
+     obtain ⟨δ, hδ, H⟩ := h c hc
+     rw [Metric.eventually_nhds_iff]
+     refine ⟨δ, hδ, fun {y} hy => ?_⟩
+     have hy' : |y - x| < δ := by simpa [Real.dist_eq] using hy
+     simpa [Real.norm_eq_abs, mul_comm f' (y - x)] using H y hy')),
   (`MachLib.Real.u_nonneg,       Unhygienic.run `(le_refl (0 : ℝ))) ]
 
 def mkMap : TermElabM (List (Name × Expr)) :=
@@ -293,33 +349,20 @@ def bridgeAxioms : List Name := [`Certcom.floatOfR, `Certcom.realToR, `Certcom.r
 /-- Known-unwitnessed trusted axioms + machine-readable reason. CI-visible; shrinks as witnesses
 are added. Trusted-but-unaccounted (not here, not registered, not standard/mapped) FAILS. -/
 def witnessGap : List (Name × String) := [
-  (`MachLib.Real.hasDerivAt_continuousAt,
-    "MachLib's `ContinuousAt` is its own transparent epsilon-delta def (IntermediateValue.lean:21) \
-over MachLib's `abs`, not Mathlib's filter-based `ContinuousAt`. Witnessing it needs both \
-interpreted and the epsilon-delta form derived from `HasDerivAt.continuousAt` -- a real proof, \
-not a one-line term. Witnessable; not yet witnessed."),
-  (`MachLib.Real.HasDerivAt_of_eps_delta,
-    "Same reason, other direction: the epsilon-delta CHARACTERISATION of the derivative. Needs \
-MachLib's `abs` interpreted and Mathlib's `hasDerivAt_iff_tendsto` unfolded. Witnessable."),
-  (`MachLib.Real.HasDerivAt_congr,
-    "Local-equality congruence. Mathlib has `Filter.EventuallyEq.hasDerivAt_iff`, but the \
-hypothesis is stated epsilon-delta, so it needs the same `abs`/neighbourhood bridge."),
-  (`MachLib.Real.HasDerivAt_arcsin,
-    "Mathlib's `Real.hasDerivAt_arcsin` takes `x != -1` and `x != 1`; MachLib states `|x| < 1`. \
-The implication is routine but needs MachLib's `abs` interpreted first."),
-  (`MachLib.Real.HasDerivAt_arccos, "As `HasDerivAt_arcsin`."),
-  (`MachLib.Real.sup_exists,
-    "Least-upper-bound property. Mathlib has `Real.exists_isLUB`; the statement quantifies over \
-MachLib's `BoundedAbove` def, which must be interpreted before the witness typechecks."),
   (`MachLib.analytic_finite_zeros_compact,
     "An analytic function not identically zero has finitely many zeros on a compact. Mathlib has \
-this via `AnalyticOnNhd` + `Set.Finite`; the statement quantifies over MachLib's own \
-`IsAnalyticOnReals`, which is a MAPPED carrier, so the witness needs that unfolded. Witnessable."),
-  (`MachLib.analytic_ne_zero_nbhd, "As `analytic_finite_zeros_compact` (isolated-zeros side)."),
-  (`MachLib.Real.log10_def,
-    "`log10` is interpreted as `Real.logb 10`; the axiom asserts `exp (logb 10 x * log 10) = x` \
-for `x > 0`, which is `Real.exp_log` after `Real.logb` unfolding. Routine; not yet done.")
+the ingredients (`AnalyticAt.locally_ne_zero`, IsolatedZeros.lean:108) but NOT the packaged \
+statement: the derivation is isolated-zeros + a finite subcover of `Icc a b`, plus interpreting \
+MachLib's `Icc`/`Ioo`/`RealSetFinite`. Witnessable, and the only genuinely non-trivial one left."),
+  (`MachLib.analytic_ne_zero_nbhd,
+    "Looks like the isolated-zeros twin of the above, but is NOT: read the statement and it never \
+uses analyticity. `G x != 0` plus CONTINUITY already gives a punctured interval where `G != 0`, \
+so the witness is openness of `{y | G y != 0}`, not `locally_ne_zero`. Blocked only on \
+interpreting MachLib's `Icc`/`Ioo`. Cheaper than it looks -- do this one first.")
 ]
+
+
+
 
 run_cmd Command.liftTermElabM do
   let registered := witnessRegistry.map Prod.fst
