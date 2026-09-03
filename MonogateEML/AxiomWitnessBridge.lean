@@ -1,6 +1,7 @@
 import Mathlib.Analysis.SpecialFunctions.Log.Base
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.InverseDeriv
 import Mathlib.Analysis.Analytic.IsolatedZeros
+import Mathlib.Topology.Compactness.Compact
 import MachLib
 import Mathlib.Analysis.SpecialFunctions.Exp
 import Mathlib.Analysis.Calculus.Deriv.Basic
@@ -117,6 +118,9 @@ def interpEntries : List (Name × TSyntax `term) := [
   (`MachLib.Ioi,                Unhygienic.run `((fun a : ℝ => Set.Ioi a))),
   (`MachLib.Icc,                Unhygienic.run `((fun a b : ℝ => Set.Icc a b))),
   (`MachLib.Ioo,                Unhygienic.run `((fun a b : ℝ => Set.Ioo a b))),
+  -- `RealSetFinite` is a Nodup-list-length bound, NOT `Set.Finite` (AnalyticFiniteZeros.lean:70).
+  (`MachLib.RealSetFinite,      Unhygienic.run `((fun s : Set ℝ =>
+     ∃ n : ℕ, ∀ l : List ℝ, l.Nodup → (∀ x ∈ l, x ∈ s) → l.length ≤ n))),
   (`MachLib.IsAnalyticOnReals,  Unhygienic.run `((fun (f : ℝ → ℝ) (S : Set ℝ) => AnalyticOnNhd ℝ f S))) ]
 
 /-- Witness registry: MachLib axiom ↦ a Mathlib term claimed to inhabit its interpreted type.
@@ -308,6 +312,23 @@ def witnessRegistry : List (Name × TSyntax `term) := [
      have hl : x - δ/2 < y := lt_of_le_of_lt (le_max_right _ _) h1
      have hr : y < x + δ/2 := lt_of_lt_of_le h2 (min_le_right _ _)
      exact H (by rw [Real.dist_eq, abs_lt]; constructor <;> linarith))),
+  -- THE LAST GAP. My own gap reason over-estimated this: it said a connected OPEN superset of
+  -- `Icc a b` had to be built from the pointwise `AnalyticAt` neighbourhoods. Not so --
+  -- `eqOn_zero_of_preconnected_of_frequently_eq_zero` wants only `IsPreconnected U`, and
+  -- `Set.Icc a b` is preconnected, so the identity theorem applies to it directly. The whole
+  -- construction I had budgeted for was unnecessary and the proof is ten lines.
+  (`MachLib.analytic_finite_zeros_compact, Unhygienic.run `(fun f a b hab hf hne => by
+     obtain ⟨x₀, hx₀mem, hx₀ne⟩ := hne
+     have hZfin : {x : ℝ | x ∈ Set.Icc a b ∧ f x = 0}.Finite := by
+       by_contra hinf
+       obtain ⟨z₀, hz₀K, hacc⟩ :=
+         Set.Infinite.exists_accPt_of_subset_isCompact hinf isCompact_Icc (fun x hx => hx.1)
+       have hfreq : ∃ᶠ y in nhdsWithin z₀ {z₀}ᶜ, f y = 0 := by
+         rw [accPt_iff_frequently_nhdsNE] at hacc
+         exact hacc.mono (fun y hy => hy.2)
+       exact hx₀ne ((hf.eqOn_zero_of_preconnected_of_frequently_eq_zero
+         isPreconnected_Icc hz₀K hfreq) (Set.Ioo_subset_Icc_self hx₀mem))
+     exact realSetFinite_of_finite hZfin)),
   (`MachLib.Real.u_nonneg,       Unhygienic.run `(le_refl (0 : ℝ))) ]
 
 def mkMap : TermElabM (List (Name × Expr)) :=
@@ -384,19 +405,8 @@ def bridgeAxioms : List Name := [`Certcom.floatOfR, `Certcom.realToR, `Certcom.r
 
 /-- Known-unwitnessed trusted axioms + machine-readable reason. CI-visible; shrinks as witnesses
 are added. Trusted-but-unaccounted (not here, not registered, not standard/mapped) FAILS. -/
-def witnessGap : List (Name × String) := [
-  (`MachLib.analytic_finite_zeros_compact,
-    "The last gap, and it is ONE obligation now, not two. The conversion half is done and named: \
-`realSetFinite_of_finite` (this file) turns a `Set.Finite` into MachLib's `RealSetFinite`, which is \
-a Nodup-list-length bound rather than `Set.Finite` (AnalyticFiniteZeros.lean:70) -- a second \
-obligation nobody had recorded. What remains is purely the analysis: zeros of an analytic function \
-on `Icc a b` that is not identically zero are finite. Mathlib has codiscrete-zeros machinery \
-(`AnalyticOnNhd.preimage_mem_codiscreteWithin`, IsolatedZeros.lean:346; \
-`codiscrete_setOf_analyticOrderAt_eq_zero`, Order.lean:632) but applying it needs a CONNECTED OPEN \
-superset of `Icc a b`, which must be built from the pointwise `AnalyticAt` neighbourhoods -- \
-`AnalyticOnNhd f (Icc a b)` gives analyticity at each point, not on an open set. That construction \
-is the real cost and is why this one outlived the other eight.")
-]
+def witnessGap : List (Name × String) := []
+
 
 
 
