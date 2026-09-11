@@ -121,11 +121,36 @@ def interpEntries : List (Name × TSyntax `term) := [
   -- `RealSetFinite` is a Nodup-list-length bound, NOT `Set.Finite` (AnalyticFiniteZeros.lean:70).
   (`MachLib.RealSetFinite,      Unhygienic.run `((fun s : Set ℝ =>
      ∃ n : ℕ, ∀ l : List ℝ, l.Nodup → (∀ x ∈ l, x ∈ s) → l.length ≤ n))),
+  -- Decimal literals. `realOfScientific m s e` denotes `m·10⁻ᵉ` when `s`, else `m·10ᵉ` -- the
+  -- standard `OfScientific` reading, and the one `realOfScientific_clears` pins.
+  (`MachLib.Real.realOfScientific, Unhygienic.run `((fun (m : ℕ) (s : Bool) (e : ℕ) =>
+     cond s ((m : ℝ) / 10 ^ e) ((m : ℝ) * 10 ^ e)))),
+  (`MachLib.Real.instOfScientific, Unhygienic.run `((inferInstance : OfScientific ℝ))),
   (`MachLib.IsAnalyticOnReals,  Unhygienic.run `((fun (f : ℝ → ℝ) (S : Set ℝ) => AnalyticOnNhd ℝ f S))) ]
 
 /-- Witness registry: MachLib axiom ↦ a Mathlib term claimed to inhabit its interpreted type.
 The claim is CHECKED (not trusted): a wrong entry fails the gate. -/
 def witnessRegistry : List (Name × TSyntax `term) := [
+  -- The decimal-literal family. Outside the trusted footprint until 2026-09-11 and therefore
+  -- unclassified, while every Forge certificate containing a literal like `100.0` depended on it:
+  -- MachLib's own theorems use 0, 1 and constructed constants, so its trust machinery -- indexed on
+  -- MachLib's theorems -- never met these. Found by reading a generated certificate's footprint.
+  (`MachLib.Real.realOfScientific, Unhygienic.run `((fun (m : ℕ) (s : Bool) (e : ℕ) =>
+     cond s ((m : ℝ) / 10 ^ e) ((m : ℝ) * 10 ^ e)))),
+  (`MachLib.Real.realOfScientific_clears, Unhygienic.run `(fun m e => by
+     show (m : ℝ) / 10 ^ e * ((10 ^ e : ℕ) : ℝ) = ((m : ℕ) : ℝ)
+     rw [Nat.cast_pow]; push_cast; field_simp)),
+  (`MachLib.Real.realOfScientific_pos, Unhygienic.run `(fun m s e hm => by
+     have hm' : (0 : ℝ) < (m : ℝ) := by exact_mod_cast hm
+     cases s
+     · show (0:ℝ) < (m : ℝ) * 10 ^ e
+       positivity
+     · show (0:ℝ) < (m : ℝ) / 10 ^ e
+       positivity)),
+  (`MachLib.Real.realOfScientific_one_dot_zero,   Unhygienic.run `(by norm_num)),
+  (`MachLib.Real.realOfScientific_two_dot_zero,   Unhygienic.run `(by norm_num)),
+  (`MachLib.Real.realOfScientific_three_dot_zero, Unhygienic.run `(by norm_num)),
+  (`MachLib.Real.lit_one_eq,                      Unhygienic.run `(by norm_num)),
   -- raw operations (interpreted type is just the ℝ operation's type)
   (`MachLib.Real.addR,           Unhygienic.run `((fun a b : ℝ => a + b))),
   (`MachLib.Real.mulR,           Unhygienic.run `((fun a b : ℝ => a * b))),
