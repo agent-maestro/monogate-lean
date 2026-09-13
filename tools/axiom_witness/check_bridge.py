@@ -37,7 +37,11 @@ def run_lean_src(src: str) -> tuple[int, str]:
 
 def enforce() -> int:
     code, out = run_lean_src(open(BRIDGE, encoding="utf-8").read())
-    cov = re.search(r"full accounting of (\d+) trusted axioms", out)
+    # The bridge's cross-check fails the build on any unaccounted trusted axiom, so exit 0 plus its
+    # coverage line IS full accounting. That line once read "full accounting of N trusted axioms"; it
+    # now reads "... + G tracked-gap, against N trusted axioms". Matching only the old wording turned
+    # this runner red on a green bridge (found 2026-09-12), so either wording is accepted.
+    cov = re.search(r"(?:full accounting of|against) (\d+) trusted axioms", out)
     wit = re.search(r"(\d+)/(\d+) registered axioms verbatim-witnessed", out)
     if code != 0 or not (cov and wit):
         print(f"{R}{B}WITNESS-BRIDGE FAIL{RST} — the MachLib.Real ⊨ ℝ layer broke:")
