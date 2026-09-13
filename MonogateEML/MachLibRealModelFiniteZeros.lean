@@ -58,7 +58,7 @@ theorem analytic_finite_zeros_compact (f : ℝ → ℝ) (a b : ℝ) (hab : a < b
       obtain ⟨hZclosed, hZdiscrete⟩ := isClosed_and_discrete_iff.mpr hdisj
       haveI := hZdiscrete
       have hfin := Metric.finite_isBounded_inter_isClosed
-        (K := Set.Icc a b) isCompact_Icc.isBounded hZclosed
+        (K := Set.Icc a b) hZdiscrete isCompact_Icc.isBounded hZclosed
       rwa [Set.inter_eq_right.mpr hZsub] at hfin
   -- Step 2: a Nodup list of zeros is bounded by |Z.toFinset|.
   refine ⟨hZfin.toFinset.card, fun l hnodup hmem => ?_⟩

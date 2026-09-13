@@ -1,7 +1,7 @@
 -- MonogateEML/ChainOrderAdditivity.lean
 import Mathlib.Data.Real.Basic
 import Mathlib.Data.Multiset.Basic
-import Mathlib.Algebra.BigOperators.Group.Multiset
+import Mathlib.Algebra.BigOperators.Group.Multiset.Basic
 
 /-!
 # Chain-Order Additivity (CHA)

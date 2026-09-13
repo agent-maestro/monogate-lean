@@ -844,14 +844,14 @@ theorem sq_abs_eq_sq (x : ℝ) : x ^ 2 = |x| ^ 2 := (sq_abs x).symm
 -- ===================================================================
 
 /-- |a + b| ≤ |a| + |b| (triangle inequality, named). -/
-theorem abs_add_le_named (a b : ℝ) : |a + b| ≤ |a| + |b| := abs_add a b
+theorem abs_add_le_named (a b : ℝ) : |a + b| ≤ |a| + |b| := abs_add_le a b
 
 /-- |a − b| ≤ |a| + |b|. -/
 theorem abs_sub_le_named (a b : ℝ) : |a - b| ≤ |a| + |b| := abs_sub a b
 
 /-- 0 < log x ↔ 1 < x (for x > 0). -/
 theorem log_pos_iff_one_lt (x : ℝ) (hx : 0 < x) : 0 < Real.log x ↔ 1 < x :=
-  Real.log_pos_iff hx
+  Real.log_pos_iff hx.le
 
 -- ===================================================================
 -- exp / log thresholds
