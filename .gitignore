@@ -5,3 +5,6 @@ build/
 
 # Graphify analysis output (config in .graphifyignore is committed)
 graphify-out/
+
+# Python bytecode (tools/lean_claims is imported by its own self-test runs)
+__pycache__/

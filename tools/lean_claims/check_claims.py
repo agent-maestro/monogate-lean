@@ -12,14 +12,20 @@ and nothing outside the axioms the registry allows. A file that merely compiles 
 theorem in it: a `sorry` compiles with a warning. So each claimed theorem's report is read on its own,
 and an error on one theorem's `#print axioms` line fails that theorem, not the whole file.
 
-WHAT "PINNED" COVERS, AND WHAT IT DOES NOT. A revision is a full 40-hex commit sha; a branch, `HEAD` or
-`sha^` can move. The claimed file is read with `git show <revision>:<file>`, never from a working tree.
-Its imports are compiled .olean files, so they are only as pinned as the environment: the toolchain
-must be the declared one, the registry must declare exactly the package revisions lake-manifest.json
-pins, and every package checkout must sit at its pin. Every direct import must then come from Lean
-core or one of those packages. An import from the environment's own build, or from a path dependency,
-is refused (IMPORT). Its .olean is whatever was built last, not the pinned revision, and this gate does
-not rebuild it.
+WHAT "PINNED" COVERS. A revision is a full 40-hex commit sha; a branch, `HEAD` or `sha^` can move. The
+claimed file is read with `git show <revision>:<file>`, never from a working tree. Its imports are
+compiled .olean files, and each is pinned by where it comes from:
+  * Lean core -- by the declared toolchain.
+  * a lake package -- the registry declares exactly the revisions lake-manifest.json pins, and every
+    package checkout must sit at its pin.
+  * a LOCAL source tree -- the environment project's own modules, or a path dependency such as
+    monogate-lean's MachLib. The environment declares the tree under `sources`, with a repository and
+    a full sha. Every module the claim reaches in it, transitively, must be byte-identical to that
+    revision, and `lake build --no-build` must report their build current.
+An import from anywhere else, or one nothing resolves, is refused (IMPORT). The gate never builds: a
+stale build is ENVIRONMENT, because an .olean older than its source is not the pinned source's proof.
+`lake build --no-build` exits 3 both when a module is out of date and when its last build failed;
+either way the .olean cannot be trusted, so both refuse.
 
 COVERAGE, BOTH DIRECTIONS. The site's sources are scanned for the claim labels. Every occurrence must
 be a registered claim site or an exemption that gives its reason, and every registered site must still
@@ -28,7 +34,9 @@ line that has gone.
 
 REGISTRY (JSON; paths are relative to --root):
   environments  {name: {"project": dir holding lean-toolchain, "toolchain": "leanprover/lean4:vX",
-                        "packages": {name: revision, ...} -- exactly what lake-manifest.json pins}}
+                        "packages": {name: revision, ...} -- exactly what lake-manifest.json pins,
+                        "sources": {tree dir: {"repository": git repo dir, "revision": full sha}}}}
+                        (`sources` is needed only when a claim imports local modules)
   scan          {"paths": [...], "extensions": [...], "labels": [case-insensitive regex, ...]}
   claims        [{id, statement, sites: [{file, line}], repository, revision, file, environment,
                   theorems: [fully qualified names], allowed_axioms: [...] (optional)}]
@@ -36,8 +44,9 @@ REGISTRY (JSON; paths are relative to --root):
 
 CODES:
   UNPINNED      a claim's revision is not a full commit sha
-  ENVIRONMENT   the toolchain, or a package revision, is not the declared one
-  IMPORT        the pinned file imports a module from outside Lean core and the pinned packages
+  ENVIRONMENT   the toolchain or a package revision is not the declared one, or the build of the
+                claim's local imports is not current
+  IMPORT        an import from an unpinned source, or a local module that differs from its pinned revision
   COMPILE       the pinned file does not compile (an error outside the appended #print axioms lines)
   NOT_DECLARED  a claimed theorem is not declared in the claimed file: misspelt, commented out, or elsewhere
   NO_REPORT     a claimed theorem produced no axiom report (e.g. declared in a namespace, claimed unqualified)
@@ -49,7 +58,7 @@ CODES:
 
 Usage:
   python3 tools/lean_claims/check_claims.py --registry <site>/scripts/lean_claims.json --root <site>
-  python3 tools/lean_claims/check_claims.py --self-test [--project <built Lean project>]
+  python3 tools/lean_claims/check_claims.py --self-test [--project <project whose toolchain to use>]
 Exit: 0 every claim green | 1 a claim failed | 2 could not evaluate.
 """
 from __future__ import annotations
@@ -66,6 +75,7 @@ from collections import defaultdict
 from pathlib import Path
 
 LEAN_TIMEOUT_S = 1800
+LAKE_TIMEOUT_S = 600
 _FULL_SHA = re.compile(r"[0-9a-f]{40}")
 _ERROR_AT = re.compile(r":(\d+):\d+: error")
 _DEPENDS = re.compile(r"'([^']+)' depends on axioms: \[(.*?)\]", re.S)
@@ -74,6 +84,7 @@ _BLOCK_COMMENT = re.compile(r"/-.*?-/", re.S)
 _LINE_COMMENT = re.compile(r"--[^\n]*")
 _IMPORT = re.compile(r"^[ \t]*(?:(?:public|private|meta)[ \t]+)*import[ \t]+(.+)$", re.M)
 _DECLARATION = re.compile(r"(?<![\w.])(?:theorem|lemma|def|abbrev|instance)\s+([^\s(:{\[⦃]+)")
+_OLEAN_DIR = (".lake", "build", "lib", "lean")
 
 # Git exports GIT_DIR (and friends) to hooks. Under one, `git -C <another repository>` still reads the
 # repository the hook belongs to, so a pinned revision in another repository looks absent. That
@@ -158,6 +169,82 @@ def import_origin(module: str, search: list[Path], prefix: Path, project: Path) 
     return "unresolved"
 
 
+def local_closure(source: str, env: dict, root: Path, search: list[Path], prefix: Path,
+                  project: Path) -> tuple[list[str], list[str]]:
+    """(local modules the claimed file reaches, why any of them is not pinned).
+
+    Walks imports transitively. Lean core and pinned packages end the walk. A module built from a local
+    source tree must come from a tree the environment declares under `sources`, and its source must be
+    byte-identical to that tree's pinned revision -- then its own imports are walked too.
+    """
+    pinned_packages = set(env.get("packages", {}))
+    trees = {(root / d).resolve(): pin for d, pin in env.get("sources", {}).items()}
+    toplevels: dict[Path, Path | None] = {}
+    modules: list[str] = []
+    problems: list[str] = []
+    seen: set[str] = set()
+    queue = imports(source)
+    while queue:
+        module = queue.pop(0)
+        if module in seen:
+            continue
+        seen.add(module)
+        origin = import_origin(module, search, prefix, project)
+        if origin == "core" or origin.removeprefix("package:") in pinned_packages:
+            continue
+        if not origin.startswith("unpinned:"):
+            problems.append(f"{module} comes from {origin}, which no revision pins")
+            continue
+        olean_dir = Path(origin.removeprefix("unpinned:"))
+        tree = Path(*olean_dir.parts[:-4]) if olean_dir.parts[-4:] == _OLEAN_DIR else None
+        pin = trees.get(tree) if tree else None
+        if pin is None:
+            problems.append(f"{module} is built from {tree or olean_dir}, a source tree this environment does "
+                            f"not pin (declare it under `sources`)")
+            continue
+        if not _FULL_SHA.fullmatch(pin.get("revision", "")):
+            problems.append(f"the `sources` pin for {tree} is {pin.get('revision')!r}, not a full commit sha")
+            continue
+        repo = (root / pin["repository"]).resolve()
+        if repo not in toplevels:
+            top = _git(repo, "rev-parse", "--show-toplevel")
+            toplevels[repo] = Path(top.stdout.decode().strip()).resolve() if top.returncode == 0 else None
+        if toplevels[repo] is None:
+            problems.append(f"{pin['repository']} (the `sources` pin for {tree}) is not a git repository here")
+            continue
+        parts = module.split(".")
+        file = tree.joinpath(*parts[:-1], f"{parts[-1]}.lean")
+        if not file.is_file() or not file.resolve().is_relative_to(toplevels[repo]):
+            problems.append(f"{module} has no source in {pin['repository']} at {file}")
+            continue
+        rel = file.resolve().relative_to(toplevels[repo]).as_posix()
+        pinned = _git(repo, "show", f"{pin['revision']}:{rel}")
+        working = file.read_bytes()
+        if pinned.returncode != 0:
+            problems.append(f"{module} ({rel}) is not in {pin['repository']} at {pin['revision'][:12]}")
+            continue
+        if pinned.stdout != working:
+            problems.append(f"{module} ({rel}) differs from {pin['repository']} at {pin['revision'][:12]}: "
+                            f"the environment would compile against source the pin does not name")
+            continue
+        modules.append(module)
+        queue.extend(imports(working.decode("utf-8", errors="replace")))
+    return modules, problems
+
+
+def stale_build(project: Path, modules: list[str]) -> str | None:
+    """Why the environment's build of `modules` is not current; None when it is. Never builds."""
+    if not modules:
+        return None
+    run = subprocess.run(["lake", "build", "--no-build", *(f"+{m}" for m in modules)], cwd=str(project),
+                         env=_GIT_ENV, capture_output=True, text=True, timeout=LAKE_TIMEOUT_S)
+    if run.returncode == 0:
+        return None
+    said = [ln.strip() for ln in (run.stdout + run.stderr).splitlines()
+            if ln.startswith(("error:", "- ", "Some required"))]
+    return f"`lake build --no-build` exited {run.returncode}: {' | '.join(said[:6])[:300]}"
+
+
 def check_claims(registry: dict, root: Path) -> list[tuple[str, str, str]]:
     """[(code, claim id or file, message)] -- empty when every claim is green."""
     problems: list[tuple[str, str, str]] = []
@@ -199,13 +286,19 @@ def check_claims(registry: dict, root: Path) -> list[tuple[str, str, str]]:
             problems.append(("UNAVAILABLE", ids, f"`lake env` failed in {project}"))
             continue
         search, prefix = searched[project]
-        pinned = set(env.get("packages", {}))
-        outside = [(m, origin) for m in imports(source)
-                   for origin in [import_origin(m, search, prefix, project)]
-                   if origin != "core" and origin.removeprefix("package:") not in pinned]
-        if outside:
-            problems += [("IMPORT", ids, f"{file_rel} imports {m} from {origin}, which no revision pins")
-                         for m, origin in outside]
+        local, unpinned = local_closure(source, env, root, search, prefix, project)
+        if unpinned:
+            problems += [("IMPORT", ids, f"{file_rel}: {why}") for why in unpinned]
+            continue
+        try:
+            stale = stale_build(project, local)
+        except subprocess.TimeoutExpired:
+            problems.append(("UNAVAILABLE", ids, f"`lake build --no-build` timed out after {LAKE_TIMEOUT_S}s"))
+            continue
+        if stale:
+            problems.append(("ENVIRONMENT", ids, f"the build of the {len(local)} local module(s) {file_rel} "
+                                                 f"reaches is not current, so it is not the pinned source's -- "
+                                                 f"{stale}; run `lake build` in {project}"))
             continue
 
         # One `#print axioms` per claimed theorem, on known lines after the pinned file, so an error can be
@@ -283,53 +376,79 @@ def report(problems: list[tuple[str, str, str]], registry: dict) -> int:
     return worst
 
 
-def self_test(project: Path) -> int:
-    """Every code but UNAVAILABLE must fire on its canary, and a real theorem at a registered site must
-    stay green. `project` must be a BUILT Lean project: `lake env` in an unbuilt one would fetch."""
-    found = search_path(project)
-    if found is None:
-        print(f"SELF-TEST UNAVAILABLE: `lake env` failed in {project}")
-        return 2
-    search, prefix = found
-    packages_dir = (project / ".lake" / "packages").resolve()
-    local = "CanaryNoSuchModule"                      # unresolved is refused too, if nothing local is built
-    for d in search:
-        olean = None if d.is_relative_to(prefix) or d.is_relative_to(packages_dir) else next(d.rglob("*.olean"), None)
-        if olean is not None:
-            local = ".".join(olean.relative_to(d).with_suffix("").parts)
-            break
+def _lake_project(path: Path, package: str, lib: str, toolchain: str, requires: str = "") -> None:
+    (path / lib).mkdir(parents=True)
+    (path / "lean-toolchain").write_text(toolchain + "\n")
+    (path / ".gitignore").write_text(".lake/\n")
+    (path / "lakefile.lean").write_text(
+        f"import Lake\nopen Lake DSL\npackage «{package}»\n{requires}@[default_target] lean_lib «{lib}»\n")
+    subprocess.run(["git", "-C", str(path), "init", "-q"], check=True, capture_output=True, env=_GIT_ENV)
 
+
+def _commit(repo: Path, message: str) -> str:
+    for args in (["add", "-A"], ["-c", "user.email=canary@example.invalid", "-c", "user.name=canary",
+                                 "-c", "commit.gpgsign=false", "commit", "-q", "-m", message]):
+        subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True, env=_GIT_ENV)
+    return _git(repo, "rev-parse", "HEAD").stdout.decode().strip()
+
+
+def self_test(project: Path) -> int:
+    """Every code but UNAVAILABLE must fire on its canary, and three real theorems -- one with no imports,
+    one importing a pinned local module, one importing a pinned path dependency -- must stay green.
+
+    The canaries live in a Lake workspace built here, offline: `canary`, with a path dependency on
+    `canarydep`, both on the toolchain of `project`. So the local-import rules are exercised against a
+    real .lake build without depending on the state of any real project's build."""
+    toolchain = (project / "lean-toolchain").read_text().strip()
     with tempfile.TemporaryDirectory(prefix="lean_claims_selftest_") as tmp:
         root = Path(tmp)
-        repo = root / "canary"
-        repo.mkdir()
-        (repo / "Canary.lean").write_text(
-            "theorem canary_ok : 1 + 1 = 2 := rfl\n"
-            "theorem canary_sorry : 1 = 2 := by sorry\n"
-            "theorem canary_choice (p : Prop) : p ∨ ¬p := Classical.em p\n"
-            "namespace Canary\ntheorem canary_ns : True := trivial\nend Canary\n"
-            "-- theorem canary_absent : True := trivial\n")
-        (repo / "Broken.lean").write_text("theorem canary_broken : 1 = 2 := rfl\n")
-        (repo / "Local.lean").write_text(f"import {local}\ntheorem canary_local : True := trivial\n")
-        for args in (["init", "-q"], ["add", "."],
-                     ["-c", "user.email=canary@example.invalid", "-c", "user.name=canary",
-                      "-c", "commit.gpgsign=false", "commit", "-q", "-m", "canary"]):
-            subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True, env=_GIT_ENV)
-        revision = _git(repo, "rev-parse", "HEAD").stdout.decode().strip()
+        dep, canary = root / "canarydep", root / "canary"
+        _lake_project(dep, "canarydep", "CanaryDep", toolchain)
+        (dep / "CanaryDep.lean").write_text("import CanaryDep.Lemma\n")
+        (dep / "CanaryDep" / "Lemma.lean").write_text("theorem dep_ok : True := trivial\n")
+        _lake_project(canary, "canary", "CanaryLib", toolchain, 'require «canarydep» from "../canarydep"\n')
+        (canary / "CanaryLib.lean").write_text("import CanaryLib.Base\nimport CanaryDep.Lemma\n")
+        base = canary / "CanaryLib" / "Base.lean"
+        base.write_text("theorem base_ok : True := trivial\n")
+        for name, text in {
+            "Claims.lean": "theorem canary_ok : 1 + 1 = 2 := rfl\n"
+                           "theorem canary_sorry : 1 = 2 := by sorry\n"
+                           "theorem canary_choice (p : Prop) : p ∨ ¬p := Classical.em p\n"
+                           "namespace Canary\ntheorem canary_ns : True := trivial\nend Canary\n"
+                           "-- theorem canary_absent : True := trivial\n",
+            "Broken.lean": "theorem canary_broken : 1 = 2 := rfl\n",
+            "Local.lean": "import CanaryLib.Base\ntheorem local_ok : True := base_ok\n",
+            "Dep.lean": "import CanaryDep.Lemma\ntheorem dep_claim : True := dep_ok\n",
+        }.items():
+            (canary / "CanaryLib" / name).write_text(text)
+        dep_rev = _commit(dep, "canarydep")
+        rev0 = _commit(canary, "rev0")
+        base.write_text("-- a comment, so Base.lean differs between rev0 and rev1\ntheorem base_ok : True := trivial\n")
+        rev1 = _commit(canary, "rev1")
+        build = subprocess.run(["lake", "build"], cwd=str(canary), env=_GIT_ENV, capture_output=True, text=True,
+                               timeout=LAKE_TIMEOUT_S)
+        if build.returncode != 0:
+            print(f"SELF-TEST UNAVAILABLE: the canary workspace does not build\n{(build.stdout + build.stderr)[-800:]}")
+            return 2
         (root / "site").mkdir()
         (root / "site" / "page.md").write_text("Registered: Lean-verified canary.\nUnregistered: Lean-verified stray.\n")
 
-        env = {"project": str(project), "toolchain": (project / "lean-toolchain").read_text().strip(),
-               "packages": manifest_pins(project)}
+        env = {"project": "canary", "toolchain": toolchain, "packages": manifest_pins(canary),
+               "sources": {"canary": {"repository": "canary", "revision": rev1},
+                           "canarydep": {"repository": "canarydep", "revision": dep_rev}}}
 
-        def claim(cid: str, theorem: str, file: str = "Canary.lean", environment: str = "env", **extra) -> dict:
-            return {"id": cid, "sites": [], "repository": "canary", "revision": revision, "file": file,
+        def claim(cid: str, theorem: str, file: str = "Claims.lean", environment: str = "env", **extra) -> dict:
+            return {"id": cid, "sites": [], "repository": "canary", "revision": rev1, "file": f"CanaryLib/{file}",
                     "environment": environment, "theorems": [theorem], **extra}
 
         registry = {
-            "environments": {"env": env,
-                             "old-toolchain": {**env, "toolchain": "leanprover/lean4:v0.0.0"},
-                             "extra-package": {**env, "packages": {**env["packages"], "canary": "0" * 40}}},
+            "environments": {
+                "env": env,
+                "old-toolchain": {**env, "toolchain": "leanprover/lean4:v0.0.0"},
+                "extra-package": {**env, "packages": {**env["packages"], "canary": "0" * 40}},
+                "dep-unpinned": {**env, "sources": {"canary": env["sources"]["canary"]}},
+                "old-pin": {**env, "sources": {**env["sources"], "canary": {"repository": "canary", "revision": rev0}}},
+            },
             "scan": {"paths": ["site"], "extensions": [".md"], "labels": ["lean[- ]verified"]},
             "claims": [
                 claim("ok", "canary_ok", allowed_axioms=[],
@@ -340,21 +459,34 @@ def self_test(project: Path) -> int:
                 claim("elsewhere", "Nat.add_comm"),                    # has a report, but not this file's
                 claim("unqualified", "canary_ns"),                     # declared, but it is Canary.canary_ns
                 claim("broken", "canary_broken", file="Broken.lean"),
-                claim("local", "canary_local", file="Local.lean"),
                 claim("unpinned", "canary_ok", revision="HEAD"),       # the same commit today, not tomorrow
                 claim("old-toolchain", "canary_ok", environment="old-toolchain"),
                 claim("extra-package", "canary_ok", environment="extra-package"),
+                claim("local", "local_ok", file="Local.lean"),         # a pinned local import: green
+                claim("dep", "dep_claim", file="Dep.lean"),            # a pinned path dependency: green
+                claim("dep-unpinned", "dep_claim", file="Dep.lean", environment="dep-unpinned"),
+                claim("drift", "local_ok", file="Local.lean", environment="old-pin"),  # Base.lean != rev0's
             ],
             "exempt": [{"file": "site/page.md", "line": "no longer on the page", "reason": "canary"}],
         }
         got = {(c, w) for c, w, _ in check_claims(registry, root) + check_coverage(registry, root)}
+
+        # A source edited and committed after the build: the pin matches the tree, the .olean does not.
+        base.write_text("-- edited after the build\ntheorem base_ok : True := trivial\n")
+        rev2 = _commit(canary, "rev2")
+        after = {**env, "sources": {**env["sources"], "canary": {"repository": "canary", "revision": rev2}}}
+        got |= {(c, w) for c, w, _ in check_claims(
+            {"environments": {"env": after},
+             "claims": [claim("stale-build", "local_ok", file="Local.lean", revision=rev2)]}, root)}
+
     want = {("SORRY", "sorry"), ("AXIOM", "choice"), ("NOT_DECLARED", "missing"), ("NOT_DECLARED", "elsewhere"),
-            ("NO_REPORT", "unqualified"), ("COMPILE", "broken"), ("IMPORT", "local"), ("UNPINNED", "unpinned"),
+            ("NO_REPORT", "unqualified"), ("COMPILE", "broken"), ("UNPINNED", "unpinned"),
             ("ENVIRONMENT", "old-toolchain"), ("ENVIRONMENT", "extra-package"),
+            ("IMPORT", "dep-unpinned"), ("IMPORT", "drift"), ("ENVIRONMENT", "stale-build"),
             ("STALE_SITE", "exempt"), ("UNREGISTERED", "site/page.md")}
     ok = got == want
-    print(f"SELF-TEST {'OK' if ok else 'FAILED'} ({len(want)} canaries fire, canary_ok stays green; "
-          f"local import canary: {local})")
+    print(f"SELF-TEST {'OK' if ok else 'FAILED'} ({len(want)} canaries fire; canary_ok, a pinned local import and "
+          f"a pinned path dependency stay green)")
     if not ok:
         print(f"  unexpected: {sorted(got - want)}\n  missing:    {sorted(want - got)}")
     return 0 if ok else 1
@@ -366,7 +498,8 @@ def main() -> int:
     ap.add_argument("--root", type=Path, default=Path.cwd())
     ap.add_argument("--self-test", action="store_true")
     ap.add_argument("--project", type=Path, default=Path(__file__).resolve().parents[2],
-                    help="built Lean project for --self-test (default: this repository)")
+                    help="for --self-test: the Lean project whose toolchain the canary workspace uses "
+                         "(default: this repository)")
     args = ap.parse_args()
     if args.self_test:
         return self_test(args.project.resolve())
