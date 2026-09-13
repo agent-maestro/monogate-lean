@@ -78,8 +78,12 @@ LEAN_TIMEOUT_S = 1800
 LAKE_TIMEOUT_S = 600
 _FULL_SHA = re.compile(r"[0-9a-f]{40}")
 _ERROR_AT = re.compile(r":(\d+):\d+: error")
-_DEPENDS = re.compile(r"'([^']+)' depends on axioms: \[(.*?)\]", re.S)
-_NONE = re.compile(r"'([^']+)' does not depend on any axioms")
+# A report names the theorem between single quotes, and a Lean name may itself end in primes
+# (`foo'`, printed as 'foo''), so the name runs to the LAST quote before " depends" on its line. Until
+# 2026-09-13 the name was `[^']+`, and a primed theorem produced no report at all (NO_REPORT), so
+# monogate.org could not register `quadratic_lyapunov_sublevel_tight'`.
+_DEPENDS = re.compile(r"'([^\n]+?)' depends on axioms: \[(.*?)\]", re.S)
+_NONE = re.compile(r"'([^\n]+?)' does not depend on any axioms")
 _BLOCK_COMMENT = re.compile(r"/-.*?-/", re.S)
 _LINE_COMMENT = re.compile(r"--[^\n]*")
 _IMPORT = re.compile(r"^[ \t]*(?:(?:public|private|meta)[ \t]+)*import[ \t]+(.+)$", re.M)
@@ -415,7 +419,9 @@ def self_test(project: Path) -> int:
                            "theorem canary_sorry : 1 = 2 := by sorry\n"
                            "theorem canary_choice (p : Prop) : p ∨ ¬p := Classical.em p\n"
                            "namespace Canary\ntheorem canary_ns : True := trivial\nend Canary\n"
-                           "-- theorem canary_absent : True := trivial\n",
+                           "-- theorem canary_absent : True := trivial\n"
+                           "theorem canary_prime' : 1 + 1 = 2 := rfl\n"
+                           "theorem canary_choice' (p : Prop) : p ∨ ¬p := Classical.em p\n",
             "Broken.lean": "theorem canary_broken : 1 = 2 := rfl\n",
             "Local.lean": "import CanaryLib.Base\ntheorem local_ok : True := base_ok\n",
             "Dep.lean": "import CanaryDep.Lemma\ntheorem dep_claim : True := dep_ok\n",
@@ -464,6 +470,9 @@ def self_test(project: Path) -> int:
                 claim("extra-package", "canary_ok", environment="extra-package"),
                 claim("local", "local_ok", file="Local.lean"),         # a pinned local import: green
                 claim("dep", "dep_claim", file="Dep.lean"),            # a pinned path dependency: green
+                claim("prime", "canary_prime'", allowed_axioms=[]),    # a primed name with no axioms: green
+                claim("prime-axioms", "canary_choice'",                # a primed name with axioms: green
+                      allowed_axioms=["propext", "Classical.choice", "Quot.sound"]),
                 claim("dep-unpinned", "dep_claim", file="Dep.lean", environment="dep-unpinned"),
                 claim("drift", "local_ok", file="Local.lean", environment="old-pin"),  # Base.lean != rev0's
             ],
@@ -485,8 +494,8 @@ def self_test(project: Path) -> int:
             ("IMPORT", "dep-unpinned"), ("IMPORT", "drift"), ("ENVIRONMENT", "stale-build"),
             ("STALE_SITE", "exempt"), ("UNREGISTERED", "site/page.md")}
     ok = got == want
-    print(f"SELF-TEST {'OK' if ok else 'FAILED'} ({len(want)} canaries fire; canary_ok, a pinned local import and "
-          f"a pinned path dependency stay green)")
+    print(f"SELF-TEST {'OK' if ok else 'FAILED'} ({len(want)} canaries fire; canary_ok, a pinned local import, "
+          f"a pinned path dependency and two primed names stay green)")
     if not ok:
         print(f"  unexpected: {sorted(got - want)}\n  missing:    {sorted(want - got)}")
     return 0 if ok else 1
