@@ -42,11 +42,14 @@ Bridge: *the trusted set is sound over ℝ, by typecheck.*
 Together, "is X witnessed / in the footprint?" is a checked status, not an argument. It holds as of
 each check's last run, which is what the next section records.
 
-## Current state (measured 2026-09-12)
+## Current state (measured 2026-09-14)
 
-- **Ledger** (machlib 013ee5c03): `AXIOM-LEDGER PASS 243 axioms pinned, 57 headline footprints ⊆ trusted`; canary OK.
-- **Bridge** (monogate-lean 01cb1ae): `WITNESS-BRIDGE PASS 121/121 verbatim-witnessed; full accounting of 149 trusted axioms`.
-  - Coverage: `121 witnessed + 3 standard + 12 mapped + 22 float-bridge + 0 tracked-gap`.
+- **Ledger** (machlib 3333c7bf): `AXIOM-LEDGER PASS 246 axioms pinned, 61 headline footprints ⊆ trusted`; canary OK.
+- **Bridge** (monogate-lean, the commit that added `u_lt_one`): `WITNESS-BRIDGE PASS 122/122 verbatim-witnessed; full accounting of 152 trusted axioms`.
+  - Coverage: `122 witnessed + 3 standard + 12 mapped + 24 float-bridge + 0 tracked-gap`.
+  - The bridge's pinned `trustedFootprint` copy holds 152 names against the ledger's 159: it lacks the seven
+    `realOfScientific` / `lit_one_eq` names machlib promoted on 2026-09-11. machlib's gate 13 reads the live ledger and
+    accounts for all 159, so nothing fails; the copy is stale, not the accounting.
   - Canary OK.
 
 **Notable axioms:**
