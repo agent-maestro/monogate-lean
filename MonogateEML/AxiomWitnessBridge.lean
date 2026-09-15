@@ -94,7 +94,8 @@ def interpEntries : List (Name × TSyntax `term) := [
   (`MachLib.Real.cosh,          Unhygienic.run `(Real.cosh)),
   (`MachLib.Real.tanh,          Unhygienic.run `(Real.tanh)),
   -- the unit roundoff at its intended value, binary64's 2⁻⁵³ (was `0` until 2026-09-14; changed when machlib added
-  -- `u_lt_one`, so that `u_nonneg` and `u_lt_one` are both witnessed at the value the float-bridge axioms are measured at)
+  -- `u_lt_one`, so that `u_nonneg`, `u_lt_one` and, later that day, `u_le_half` are all witnessed at the value the
+  -- float-bridge axioms are measured at)
   (`MachLib.Real.u,             Unhygienic.run `(((1 : ℝ) / 2 ^ 53))),
   -- Trig / sqrt / pi block. MachLib's `sqrt` and Mathlib's `Real.sqrt` are BOTH totalised to 0
   -- on negatives, so the interpretation is exact rather than merely agreeing on the domain.
@@ -235,7 +236,7 @@ def witnessRegistry : List (Name × TSyntax `term) := [
   (`MachLib.Real.tanh_neg,       Unhygienic.run `(fun x => Real.tanh_neg x)),
   -- remaining certcom-footprint items: negation/congruence derivative rules, one more order
   -- law, and the abstract unit-roundoff constant `u`, witnessed at binary64's `2⁻⁵³`: since 2026-09-14 machlib
-  -- constrains it by `u_nonneg` and `u_lt_one`, and `2⁻⁵³` is the value both are meant to hold at
+  -- constrains it by `u_nonneg`, `u_lt_one` and `u_le_half`, and `2⁻⁵³` is the value all three are meant to hold at
   (`MachLib.Real.HasDerivAt_neg,   Unhygienic.run `(fun f a x hf => hf.neg)),
   (`MachLib.Real.HasDerivAt_of_eq, Unhygienic.run `(fun f g a x heq hf => by
     rw [show f = g from funext heq] at hf; exact hf)),
@@ -358,7 +359,9 @@ def witnessRegistry : List (Name × TSyntax `term) := [
      exact realSetFinite_of_finite hZfin)),
   (`MachLib.Real.u_nonneg,       Unhygienic.run `(le_of_lt (by norm_num : (0 : ℝ) < 1 / 2 ^ 53))),
   -- machlib `u_lt_one` (2026-09-14): `u < 1`, at the interpretation `u ↦ 1 / 2⁵³`
-  (`MachLib.Real.u_lt_one,       Unhygienic.run `((by norm_num : (1 : ℝ) / 2 ^ 53 < 1))) ]
+  (`MachLib.Real.u_lt_one,       Unhygienic.run `((by norm_num : (1 : ℝ) / 2 ^ 53 < 1))),
+  -- machlib `u_le_half` (2026-09-14): `u + u ≤ 1`, at the same interpretation `u ↦ 1 / 2⁵³`
+  (`MachLib.Real.u_le_half,      Unhygienic.run `((by norm_num : (1 : ℝ) / 2 ^ 53 + 1 / 2 ^ 53 ≤ 1))) ]
 
 def mkMap : TermElabM (List (Name × Expr)) :=
   interpEntries.mapM (fun (n, s) => do return (n, ← elabTerm s none))
@@ -428,11 +431,14 @@ semantics: they are claims about an implementation, validated by MEASUREMENT (th
 harness and the hardware anchors), not by a model.
 
 Listing them here rather than in `witnessGap` keeps the two kinds of trust apart. "Zero unmodeled
-axioms" is a claim about the mathematical footprint; these 24 are the empirical footprint, and a
-reader of the manifest should see that boundary rather than have it averaged away. Two of them conclude that a float is
+axioms" is a claim about the mathematical footprint; these 31 are the empirical footprint, and a
+reader of the manifest should see that boundary rather than have it averaged away. Six of them conclude that a float is
 finite rather than how close it reads back: `real_fpfinite` (round-to-nearest's overflow rule) and `real_round_finite`
-(`floatOfR` of a real in range is finite), both added to machlib on 2026-09-14. -/
-def bridgeAxioms : List Name := [`Certcom.floatOfR, `Certcom.realToR, `Certcom.real_abs_eps, `Certcom.real_abs_rounds, `Certcom.real_acos_rounds, `Certcom.real_asin_rounds, `Certcom.real_atan_eps, `Certcom.real_atan_rounds, `Certcom.real_cos_eps, `Certcom.real_cos_rounds, `Certcom.real_cosh_rounds, `Certcom.real_exp_rounds, `Certcom.real_fpbridge, `Certcom.real_fpfinite, `Certcom.real_log10_rounds, `Certcom.real_log_rounds, `Certcom.real_round_bounds, `Certcom.real_round_finite, `Certcom.real_sin_eps, `Certcom.real_sin_rounds, `Certcom.real_sinh_rounds, `Certcom.real_sqrt_rounds, `Certcom.real_tan_rounds, `Certcom.real_tanh_rounds]
+(`floatOfR` of a real in range is finite), added to machlib on 2026-09-14, and `real_exp_finite`, `real_sinh_finite`,
+`real_cosh_finite` and `real_log_finite` (the runtime primitive of a finite float in a stated range is finite), added
+later the same day. Three say what a `Float` literal is: `float_lit_1_5`, `float_lit_0_4` and `float_lit_0_05`, the PID
+gains, each the correctly rounded double of its decimal. -/
+def bridgeAxioms : List Name := [`Certcom.floatOfR, `Certcom.float_lit_0_05, `Certcom.float_lit_0_4, `Certcom.float_lit_1_5, `Certcom.realToR, `Certcom.real_abs_eps, `Certcom.real_abs_rounds, `Certcom.real_acos_rounds, `Certcom.real_asin_rounds, `Certcom.real_atan_eps, `Certcom.real_atan_rounds, `Certcom.real_cos_eps, `Certcom.real_cos_rounds, `Certcom.real_cosh_finite, `Certcom.real_cosh_rounds, `Certcom.real_exp_finite, `Certcom.real_exp_rounds, `Certcom.real_fpbridge, `Certcom.real_fpfinite, `Certcom.real_log10_rounds, `Certcom.real_log_finite, `Certcom.real_log_rounds, `Certcom.real_round_bounds, `Certcom.real_round_finite, `Certcom.real_sin_eps, `Certcom.real_sin_rounds, `Certcom.real_sinh_finite, `Certcom.real_sinh_rounds, `Certcom.real_sqrt_rounds, `Certcom.real_tan_rounds, `Certcom.real_tanh_rounds]
 
 /-- Known-unwitnessed trusted axioms + machine-readable reason. CI-visible; shrinks as witnesses
 are added. Trusted-but-unaccounted (not here, not registered, not standard/mapped) FAILS. -/

@@ -44,12 +44,14 @@ each check's last run, which is what the next section records.
 
 ## Current state (measured 2026-09-14)
 
-- **Ledger** (machlib 3333c7bf): `AXIOM-LEDGER PASS 246 axioms pinned, 61 headline footprints ⊆ trusted`; canary OK.
-- **Bridge** (monogate-lean, the commit that added `u_lt_one`): `WITNESS-BRIDGE PASS 122/122 verbatim-witnessed; full accounting of 152 trusted axioms`.
-  - Coverage: `122 witnessed + 3 standard + 12 mapped + 24 float-bridge + 0 tracked-gap`.
-  - The bridge's pinned `trustedFootprint` copy holds 152 names against the ledger's 159: it lacks the seven
-    `realOfScientific` / `lit_one_eq` names machlib promoted on 2026-09-11. machlib's gate 13 reads the live ledger and
-    accounts for all 159, so nothing fails; the copy is stale, not the accounting.
+- **Ledger** (machlib, the commit that added the literal, libm-finiteness and `u_le_half` axioms): `AxiomLedger OK: 254 axioms pinned; 102 headline footprints ⊆ trusted (167)`.
+- **Bridge** (monogate-lean, the commit that witnessed `u_le_half`): `WITNESS-BRIDGE PASS 123/123 verbatim-witnessed; full accounting of 152 trusted axioms`.
+  - Coverage: `123 witnessed + 3 standard + 12 mapped + 31 float-bridge + 0 tracked-gap`.
+  - The seven axioms added to `bridgeAxioms` that day are float-bridge rows: `float_lit_1_5`, `float_lit_0_4`,
+    `float_lit_0_05`, `real_exp_finite`, `real_sinh_finite`, `real_cosh_finite`, `real_log_finite`.
+  - The bridge's pinned `trustedFootprint` copy holds 152 names against the ledger's 167: it lacks the seven
+    `realOfScientific` / `lit_one_eq` names machlib promoted on 2026-09-11 and the eight added on 2026-09-14. machlib's
+    gate 13 reads the live ledger and accounts for all 167, so nothing fails; the copy is stale, not the accounting.
   - Canary OK.
 
 **Notable axioms:**
