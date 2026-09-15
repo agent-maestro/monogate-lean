@@ -25,13 +25,15 @@ in its `lakefile.lean` and `lake-manifest.json`. machlib is Mathlib-free.
 2. **Witness bridge** (monogate-lean). Every registered trusted axiom is verbatim-witnessed
    `MachLib.Real ⊨ ℝ`: the axiom's actual type is interpreted into ℝ and a witness is typechecked
    against it, with no name-matching. The cross-check accounts for every trusted axiom as witnessed,
-   standard, mapped, float-bridge or tracked gap; an unaccounted axiom fails the build.
+   standard, mapped, float-bridge or tracked gap; an unaccounted axiom fails the build, and so do coverage
+   parts that do not sum to the trusted count.
    ```
    cd monogate-lean && python3 tools/axiom_witness/check_bridge.py --self-test
    ```
    - **Fails on:** a witness that stops typechecking (for example, a Mathlib rename under the pinned
-     rev), or a trusted axiom with no witness or gap entry.
-   - A canary proves it goes red on a wrong witness.
+     rev), a trusted axiom with no witness or gap entry, or a trusted axiom counted by two classes.
+   - Canaries prove it goes red on a wrong witness, on a de-classified ledger name, and on a trusted name
+     counted by two classes.
    - **Where it runs:** monogate-lean has no CI. The bridge runs by hand, and in monogate.org's
      `npm run predeploy` (`check:axiom-bridge`) before every deploy of that site.
 
@@ -42,13 +44,19 @@ Bridge: *the trusted set is sound over ℝ, by typecheck.*
 Together, "is X witnessed / in the footprint?" is a checked status, not an argument. It holds as of
 each check's last run, which is what the next section records.
 
-## Current state (measured 2026-09-14)
+## Current state (measured 2026-09-15)
 
-- **Ledger** (machlib, the commit that added `u_le_inv_two_pow_52` and `real_abs_eps_eq_zero` and narrowed eight float-bridge
-  axioms to finite inputs): `AxiomLedger OK: 256 axioms pinned; 112 headline footprints ⊆ trusted (169)`.
-- **Bridge** (monogate-lean, the commit that witnessed `u_le_inv_two_pow_52` and stopped pinning the footprint):
-  `WITNESS-BRIDGE PASS 124/124 verbatim-witnessed; full accounting of 169 trusted axioms`.
-  - Coverage: `124 witnessed + 3 standard + 12 mapped + 32 float-bridge + 0 tracked-gap`.
+- **Ledger** (machlib `1a3780c4`): `AxiomLedger OK: 256 axioms pinned; 112 headline footprints ⊆ trusted (169)`.
+- **Bridge** (monogate-lean, the commit that made the coverage parts sum to the trusted count):
+  `WITNESS-BRIDGE PASS 124/124 verbatim-witnessed; full accounting of 169 trusted axioms (122 witnessed + 3 standard + 12
+  mapped + 32 float-bridge + 0 tracked-gap = 169); outside the footprint, not counted: 2 witnessed
+  [MachLib.Real.tanh_zero, MachLib.Real.tanh_neg]`.
+  - **The coverage parts count trusted names, and the build fails unless they sum to the trusted count.** Until
+    2026-09-15 they were class lengths and read `124 witnessed + 3 standard + 12 mapped + 32 float-bridge + 0 tracked-gap,
+    against 169 trusted axioms`, which sums past 169: `MachLib.Real.tanh_zero` and `MachLib.Real.tanh_neg` are registered
+    and typecheck, but no ledger footprint trusts them. The sum check runs two controls of its own in the build, and
+    `check_bridge.py --self-test` carries a third canary (`MachLib.Real.u_nonneg` listed as mapped as well as witnessed)
+    that failed against the bridge before the check existed and passes now.
   - `real_abs_eps_eq_zero` is a float-bridge row: `real_abs_eps` means something only through `real_abs_rounds`.
   - **The trusted footprint is no longer a copy.** `AxiomWitnessBridge.lean` reads `def trustedFootprint` out of machlib's
     `AxiomLedger.lean` on every build, found from the `MachLib` it imports. The pinned copy it replaces held 152 names

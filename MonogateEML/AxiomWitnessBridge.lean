@@ -491,6 +491,33 @@ def unaccountedIn (footprint : List Name) : List Name :=
     witnessGap.map Prod.fst
   footprint.filter (fun a => !(accounted.contains a))
 
+/-- The classes that account for a trusted name, in the order the coverage line prints them. -/
+def accountingClasses : List (String × List Name) :=
+  [("witnessed", witnessRegistry.map Prod.fst), ("standard", standardAxioms), ("mapped", mappedConstants),
+   ("float-bridge", bridgeAxioms), ("tracked-gap", witnessGap.map Prod.fst)]
+
+/-- **Each class's share of the trusted footprint**: its label, how many DISTINCT trusted names it holds, and, apart, the
+names it holds that the footprint does not.
+
+The coverage line used to print each class's LENGTH beside the footprint's size, so a witness registered for an axiom no
+footprint trusts was added in with the rest. On 2026-09-15 it read "124 witnessed + 3 standard + 12 mapped + 32
+float-bridge + 0 tracked-gap, against 169 trusted axioms", parts that sum past the total they were set against: two
+registered witnesses, `MachLib.Real.tanh_neg` and `MachLib.Real.tanh_zero`, typecheck but are not in the ledger's
+`trustedFootprint`. Counting trusted names per class keeps them out of the sum, and the line names them after it. -/
+def coverageIn (classes : List (String × List Name)) (footprint : List Name) : List (String × Nat × List Name) :=
+  let fp := footprint.eraseDups
+  classes.map fun (label, names) =>
+    (label, (fp.filter names.contains).length, names.eraseDups.filter (fun n => !(fp.contains n)))
+
+/-- The classes' trusted counts, summed. -/
+def coverageSum (classes : List (String × List Name)) (footprint : List Name) : Nat :=
+  ((coverageIn classes footprint).map (·.2.1)).foldl (· + ·) 0
+
+/-- **The parts add up**: the classes' trusted counts sum to the number of distinct trusted names. When nothing is
+unaccounted, that holds exactly when no trusted name is held by two classes. -/
+def coverageAddsUp (classes : List (String × List Name)) (footprint : List Name) : Bool :=
+  coverageSum classes footprint == footprint.eraseDups.length
+
 run_cmd Command.liftTermElabM do
   let path ← ledgerPath
   let src ← IO.FS.readFile path
@@ -511,8 +538,24 @@ run_cmd Command.liftTermElabM do
   let staleGap := (witnessGap.map Prod.fst).filter (fun a => !(trustedFootprint.contains a))
   unless staleGap.isEmpty do
     logError m!"AxiomWitnessBridge: stale witnessGap entr(y/ies) no longer trusted: {staleGap}"
-  logInfo m!"AxiomWitnessBridge coverage: {witnessRegistry.length} witnessed + {standardAxioms.length} \
-standard + {mappedConstants.length} mapped + {bridgeAxioms.length} float-bridge + \
-{witnessGap.length} tracked-gap, against {trustedFootprint.length} trusted axioms (read from {path})."
+  -- The coverage arithmetic carries two controls of its own, checked before its verdict is read: a class member outside
+  -- the footprint stays out of the sum (the line added it in until 2026-09-15), and a trusted name held by two classes
+  -- breaks the sum.
+  unless coverageAddsUp [("a", [`x, `z]), ("b", [`y])] [`x, `y] do
+    logError m!"AxiomWitnessBridge: CONTROL FAILED: a class member outside the footprint was added into the coverage sum"
+  if coverageAddsUp [("a", [`x, `y]), ("b", [`y])] [`x, `y] then
+    logError m!"AxiomWitnessBridge: CONTROL FAILED: a trusted name held by two classes did not break the coverage sum"
+  let cov := coverageIn accountingClasses trustedFootprint
+  let total := trustedFootprint.eraseDups.length
+  let partsSum := coverageSum accountingClasses trustedFootprint
+  unless coverageAddsUp accountingClasses trustedFootprint do
+    logError m!"AxiomWitnessBridge: coverage does not add up: the classes hold {partsSum} trusted names against \
+{total} trusted axioms (a trusted name is unaccounted, or held by two classes)"
+  let parts := " + ".intercalate (cov.map fun (label, k, _) => s!"{k} {label}")
+  let outside := cov.filterMap fun (label, _, out) =>
+    if out.isEmpty then none else some s!"{out.length} {label} {out}"
+  let outsideMsg := if outside.isEmpty then "none" else "; ".intercalate outside
+  logInfo m!"AxiomWitnessBridge coverage: {parts} = {partsSum}, against {total} trusted axioms (read from {path}); \
+outside the trusted footprint, not counted: {outsideMsg}."
 
 end AxiomWitnessBridge
