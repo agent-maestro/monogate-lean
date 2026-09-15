@@ -44,15 +44,18 @@ each check's last run, which is what the next section records.
 
 ## Current state (measured 2026-09-14)
 
-- **Ledger** (machlib, the commit that added the literal, libm-finiteness and `u_le_half` axioms): `AxiomLedger OK: 254 axioms pinned; 102 headline footprints ⊆ trusted (167)`.
-- **Bridge** (monogate-lean, the commit that witnessed `u_le_half`): `WITNESS-BRIDGE PASS 123/123 verbatim-witnessed; full accounting of 152 trusted axioms`.
-  - Coverage: `123 witnessed + 3 standard + 12 mapped + 31 float-bridge + 0 tracked-gap`.
-  - The seven axioms added to `bridgeAxioms` that day are float-bridge rows: `float_lit_1_5`, `float_lit_0_4`,
-    `float_lit_0_05`, `real_exp_finite`, `real_sinh_finite`, `real_cosh_finite`, `real_log_finite`.
-  - The bridge's pinned `trustedFootprint` copy holds 152 names against the ledger's 167: it lacks the seven
-    `realOfScientific` / `lit_one_eq` names machlib promoted on 2026-09-11 and the eight added on 2026-09-14. machlib's
-    gate 13 reads the live ledger and accounts for all 167, so nothing fails; the copy is stale, not the accounting.
-  - Canary OK.
+- **Ledger** (machlib, the commit that added `u_le_inv_two_pow_52` and `real_abs_eps_eq_zero` and narrowed eight float-bridge
+  axioms to finite inputs): `AxiomLedger OK: 256 axioms pinned; 112 headline footprints ⊆ trusted (169)`.
+- **Bridge** (monogate-lean, the commit that witnessed `u_le_inv_two_pow_52` and stopped pinning the footprint):
+  `WITNESS-BRIDGE PASS 124/124 verbatim-witnessed; full accounting of 169 trusted axioms`.
+  - Coverage: `124 witnessed + 3 standard + 12 mapped + 32 float-bridge + 0 tracked-gap`.
+  - `real_abs_eps_eq_zero` is a float-bridge row: `real_abs_eps` means something only through `real_abs_rounds`.
+  - **The trusted footprint is no longer a copy.** `AxiomWitnessBridge.lean` reads `def trustedFootprint` out of machlib's
+    `AxiomLedger.lean` on every build, found from the `MachLib` it imports. The pinned copy it replaces held 152 names
+    against the ledger's 167, and its cross-check had passed against the copy. Two controls run in the build (the parser
+    on a doctored list; an injected trusted name reported alone), and `check_bridge.py --self-test` carries a second
+    canary: de-classifying `Certcom.float_lit_1_5`, a ledger name the old copy lacked, turns the bridge red.
+  - Canaries OK.
 
 **Notable axioms:**
 - **The last tracked gap, `analytic_log_pos`,** is witnessed by

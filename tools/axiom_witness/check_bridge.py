@@ -66,10 +66,30 @@ def self_test() -> int:
     return 1
 
 
+def self_test_footprint() -> int:
+    """The trusted footprint is READ from machlib's ledger (since 2026-09-14), so an axiom the old hand-pinned copy LACKED
+    must now be caught. `Certcom.float_lit_1_5` was added to machlib's ledger on 2026-09-14 and never reached the copy:
+    de-classify it and the bridge must go red naming it. Against the copy it would have stayed green."""
+    src = open(BRIDGE, encoding="utf-8").read()
+    bad = src.replace("`Certcom.float_lit_1_5, ", "", 1)
+    if bad == src:
+        print(f"{R}canary BROKEN — `Certcom.float_lit_1_5` is no longer in bridgeAxioms; the specimen is inert.{RST}")
+        return 1
+    code, out = run_lean_src(bad)
+    if code != 0 and "UNACCOUNTED" in out and "Certcom.float_lit_1_5" in out:
+        print(f"{G}canary OK{RST} — de-classifying `Certcom.float_lit_1_5`, a ledger name the old pinned copy lacked, "
+              f"turns the bridge RED: the footprint is the live ledger's.")
+        return 0
+    print(f"{R}canary FAILED — removing `Certcom.float_lit_1_5` from bridgeAxioms did not turn the bridge red; the "
+          f"footprint it checks is not the live ledger's.{RST}")
+    return 1
+
+
 def main() -> int:
     rc = enforce()
     if "--self-test" in sys.argv:
         rc |= self_test()
+        rc |= self_test_footprint()
     return rc
 
 

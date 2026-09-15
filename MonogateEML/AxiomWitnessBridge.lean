@@ -361,7 +361,9 @@ def witnessRegistry : List (Name × TSyntax `term) := [
   -- machlib `u_lt_one` (2026-09-14): `u < 1`, at the interpretation `u ↦ 1 / 2⁵³`
   (`MachLib.Real.u_lt_one,       Unhygienic.run `((by norm_num : (1 : ℝ) / 2 ^ 53 < 1))),
   -- machlib `u_le_half` (2026-09-14): `u + u ≤ 1`, at the same interpretation `u ↦ 1 / 2⁵³`
-  (`MachLib.Real.u_le_half,      Unhygienic.run `((by norm_num : (1 : ℝ) / 2 ^ 53 + 1 / 2 ^ 53 ≤ 1))) ]
+  (`MachLib.Real.u_le_half,      Unhygienic.run `((by norm_num : (1 : ℝ) / 2 ^ 53 + 1 / 2 ^ 53 ≤ 1))),
+  -- machlib `u_le_inv_two_pow_52` (2026-09-14): `u ≤ 1 / natCast (2 ^ 52)`, at the same interpretation `u ↦ 1 / 2⁵³`
+  (`MachLib.Real.u_le_inv_two_pow_52, Unhygienic.run `((by norm_num : (1 : ℝ) / 2 ^ 53 ≤ 1 / ((2 ^ 52 : ℕ) : ℝ)))) ]
 
 def mkMap : TermElabM (List (Name × Expr)) :=
   interpEntries.mapM (fun (n, s) => do return (n, ← elabTerm s none))
@@ -408,8 +410,39 @@ constant (carrier/predicate, not a proposition), or an explicitly tracked gap wi
 Anything trusted-but-unaccounted FAILS; a stale gap entry FAILS. So "trusted" (ledger) and
 "witnessed" (this file) can no longer silently diverge. -/
 
-/-- The ledger's trusted footprint (machlib `AxiomLedger.trustedFootprint`, pinned snapshot). -/
-def trustedFootprint : List Name := [`Certcom.floatOfR, `Certcom.realToR, `Certcom.real_abs_eps, `Certcom.real_abs_rounds, `Certcom.real_acos_rounds, `Certcom.real_asin_rounds, `Certcom.real_atan_eps, `Certcom.real_atan_rounds, `Certcom.real_cos_eps, `Certcom.real_cos_rounds, `Certcom.real_cosh_rounds, `Certcom.real_exp_rounds, `Certcom.real_fpbridge, `Certcom.real_fpfinite, `Certcom.real_log10_rounds, `Certcom.real_log_rounds, `Certcom.real_round_bounds, `Certcom.real_round_finite, `Certcom.real_sin_eps, `Certcom.real_sin_rounds, `Certcom.real_sinh_rounds, `Certcom.real_sqrt_rounds, `Certcom.real_tan_rounds, `Certcom.real_tanh_rounds, `Classical.choice, `MachLib.IsAnalyticOnReals, `MachLib.Real, `MachLib.Real.HasDerivAt, `MachLib.Real.HasDerivAt_add, `MachLib.Real.HasDerivAt_arccos, `MachLib.Real.HasDerivAt_arcsin, `MachLib.Real.HasDerivAt_atan, `MachLib.Real.HasDerivAt_comp, `MachLib.Real.HasDerivAt_congr, `MachLib.Real.HasDerivAt_const, `MachLib.Real.HasDerivAt_cos, `MachLib.Real.HasDerivAt_exp, `MachLib.Real.HasDerivAt_id, `MachLib.Real.HasDerivAt_inv, `MachLib.Real.HasDerivAt_log_pos, `MachLib.Real.HasDerivAt_mul, `MachLib.Real.HasDerivAt_neg, `MachLib.Real.HasDerivAt_of_eps_delta, `MachLib.Real.HasDerivAt_of_eq, `MachLib.Real.HasDerivAt_sin, `MachLib.Real.HasDerivAt_sub, `MachLib.Real.HasDerivAt_unique, `MachLib.Real.addR, `MachLib.Real.add_assoc, `MachLib.Real.add_comm, `MachLib.Real.add_lt_add_left, `MachLib.Real.add_neg, `MachLib.Real.add_zero, `MachLib.Real.arccos, `MachLib.Real.archimedean, `MachLib.Real.arcsin, `MachLib.Real.atan, `MachLib.Real.atan_zero, `MachLib.Real.cos, `MachLib.Real.cos_add, `MachLib.Real.cos_neg, `MachLib.Real.cos_pi, `MachLib.Real.cos_pi_div_two, `MachLib.Real.cos_zero, `MachLib.Real.cosh, `MachLib.Real.cosh_eq, `MachLib.Real.cosh_ge_one, `MachLib.Real.cosh_pos, `MachLib.Real.divR, `MachLib.Real.div_def, `MachLib.Real.div_zero, `MachLib.Real.exp, `MachLib.Real.exp_add, `MachLib.Real.exp_gt_one_plus_self, `MachLib.Real.exp_lt, `MachLib.Real.exp_pos, `MachLib.Real.exp_surj, `MachLib.Real.exp_zero, `MachLib.Real.hasDerivAt_continuousAt, `MachLib.Real.leR, `MachLib.Real.le_iff_lt_or_eq, `MachLib.Real.le_sqrt_of_sq_le, `MachLib.Real.log10, `MachLib.Real.log10_def, `MachLib.Real.ltR, `MachLib.Real.lt_irrefl_ax, `MachLib.Real.lt_total, `MachLib.Real.lt_trans_ax, `MachLib.Real.mulR, `MachLib.Real.mul_assoc, `MachLib.Real.mul_comm, `MachLib.Real.mul_distrib, `MachLib.Real.mul_inv, `MachLib.Real.mul_lt_mul_of_pos_right, `MachLib.Real.mul_one_ax, `MachLib.Real.mul_pos, `MachLib.Real.natCast, `MachLib.Real.natCast_succ, `MachLib.Real.natCast_zero, `MachLib.Real.negR, `MachLib.Real.neg_one_lt_tanh, `MachLib.Real.oneR, `MachLib.Real.one_add_le_exp, `MachLib.Real.one_div_nonneg_of_pos, `MachLib.Real.one_div_pos_of_pos, `MachLib.Real.pi, `MachLib.Real.pi_gt_one, `MachLib.Real.pi_pos, `MachLib.Real.pythagorean, `MachLib.Real.rolle_ct, `MachLib.Real.sin, `MachLib.Real.sin_add, `MachLib.Real.sin_neg, `MachLib.Real.sin_one_pos, `MachLib.Real.sin_periodic, `MachLib.Real.sin_pi, `MachLib.Real.sin_pi_div_two, `MachLib.Real.sin_pos_of_pos_lt_pi_div_two, `MachLib.Real.sin_zero, `MachLib.Real.sinh, `MachLib.Real.sinh_eq, `MachLib.Real.sqrt, `MachLib.Real.sqrt_le_of_le_sq, `MachLib.Real.sqrt_nonneg, `MachLib.Real.sqrt_sq_nonneg, `MachLib.Real.subR, `MachLib.Real.sub_def, `MachLib.Real.sup_exists, `MachLib.Real.tan, `MachLib.Real.tan_def, `MachLib.Real.tanh, `MachLib.Real.tanh_eq_sinh_div_cosh, `MachLib.Real.tanh_lt_one, `MachLib.Real.u, `MachLib.Real.u_lt_one, `MachLib.Real.u_nonneg, `MachLib.Real.zeroR, `MachLib.Real.zero_lt_one_ax, `MachLib.Real.zero_ne_one_ax, `MachLib.analytic_add, `MachLib.analytic_comp, `MachLib.analytic_const, `MachLib.analytic_exp, `MachLib.analytic_finite_zeros_compact, `MachLib.analytic_id, `MachLib.analytic_log_pos, `MachLib.analytic_mul, `MachLib.analytic_ne_zero_nbhd, `MachLib.analytic_one_div_pos, `MachLib.analytic_sub, `Quot.sound, `propext]
+/-- **The names in `def <defName> : List Name := [ … ]` of a Lean source**, in order; `none` if the definition is absent or
+not closed. `--` comments are stripped first, because they carry backticked words that are not names.
+
+It exists because the ledger's trusted footprint is READ on every build (since 2026-09-14), not copied. This file held a
+hand-pinned `trustedFootprint`, and it went stale twice while the cross-check below passed against the COPY: 78 names
+against a live 149 until 2026-09-02, and 152 against a live 167 by 2026-09-14. machlib's CLAUDE.md says never to re-pin it
+by hand, so it is not pinned at all. -/
+def listNamesIn (src defName : String) : Option (List Name) :=
+  match src.splitOn s!"def {defName} : List Name := [" with
+  | [_, rest] =>
+    let body := String.intercalate "\n" ((rest.splitOn "\n").map fun l => (l.splitOn "--").headD "")
+    match body.splitOn "]" with
+    | inner :: _ :: _ =>
+      let isNameChar := fun c : Char => c.isAlphanum || c == '_' || c == '.' || c == '\''
+      some ((((inner.splitOn "`").drop 1).map fun p => (String.ofList (p.toList.takeWhile isNameChar)).toName)
+        |>.filter (· != Name.anonymous))
+    | _ => none
+  | _ => none
+
+/-- **machlib's `AxiomLedger.lean`, found from the `MachLib` this file imports.** Its `.olean` is
+`<foundations>/.lake/build/lib/lean/MachLib.olean`, so the ledger read is the one beside the source that was compiled, not
+whatever checkout a path happens to name. A missing file throws; it never reads as an empty footprint. -/
+def ledgerPath : IO System.FilePath := do
+  let sp ← Lean.searchPathRef.get
+  let some olean ← sp.findWithExt "olean" `MachLib
+    | throw <| IO.userError "AxiomWitnessBridge: MachLib.olean is not on the search path"
+  let mut dir := olean
+  for _ in [0:5] do
+    dir := dir.parent.getD dir
+  let path := dir / "AxiomLedger.lean"
+  unless ← path.pathExists do
+    throw <| IO.userError s!"AxiomWitnessBridge: no AxiomLedger.lean at {path} (climbed from {olean})"
+  return path
 
 /-- Standard Lean axioms — sound by construction, not witnessed here. -/
 def standardAxioms : List Name := [`propext, `Classical.choice, `Quot.sound]
@@ -431,14 +464,16 @@ semantics: they are claims about an implementation, validated by MEASUREMENT (th
 harness and the hardware anchors), not by a model.
 
 Listing them here rather than in `witnessGap` keeps the two kinds of trust apart. "Zero unmodeled
-axioms" is a claim about the mathematical footprint; these 31 are the empirical footprint, and a
+axioms" is a claim about the mathematical footprint; these 32 are the empirical footprint, and a
 reader of the manifest should see that boundary rather than have it averaged away. Six of them conclude that a float is
 finite rather than how close it reads back: `real_fpfinite` (round-to-nearest's overflow rule) and `real_round_finite`
 (`floatOfR` of a real in range is finite), added to machlib on 2026-09-14, and `real_exp_finite`, `real_sinh_finite`,
 `real_cosh_finite` and `real_log_finite` (the runtime primitive of a finite float in a stated range is finite), added
 later the same day. Three say what a `Float` literal is: `float_lit_1_5`, `float_lit_0_4` and `float_lit_0_05`, the PID
-gains, each the correctly rounded double of its decimal. -/
-def bridgeAxioms : List Name := [`Certcom.floatOfR, `Certcom.float_lit_0_05, `Certcom.float_lit_0_4, `Certcom.float_lit_1_5, `Certcom.realToR, `Certcom.real_abs_eps, `Certcom.real_abs_rounds, `Certcom.real_acos_rounds, `Certcom.real_asin_rounds, `Certcom.real_atan_eps, `Certcom.real_atan_rounds, `Certcom.real_cos_eps, `Certcom.real_cos_rounds, `Certcom.real_cosh_finite, `Certcom.real_cosh_rounds, `Certcom.real_exp_finite, `Certcom.real_exp_rounds, `Certcom.real_fpbridge, `Certcom.real_fpfinite, `Certcom.real_log10_rounds, `Certcom.real_log_finite, `Certcom.real_log_rounds, `Certcom.real_round_bounds, `Certcom.real_round_finite, `Certcom.real_sin_eps, `Certcom.real_sin_rounds, `Certcom.real_sinh_finite, `Certcom.real_sinh_rounds, `Certcom.real_sqrt_rounds, `Certcom.real_tan_rounds, `Certcom.real_tanh_rounds]
+gains, each the correctly rounded double of its decimal. And `real_abs_eps_eq_zero` (2026-09-14) says the runtime
+`abs` is exact, `real_abs_eps = 0`: a constant with meaning only through `real_abs_rounds`, so a float-bridge row, not a
+witnessed one. -/
+def bridgeAxioms : List Name := [`Certcom.floatOfR, `Certcom.float_lit_0_05, `Certcom.float_lit_0_4, `Certcom.float_lit_1_5, `Certcom.realToR, `Certcom.real_abs_eps, `Certcom.real_abs_eps_eq_zero, `Certcom.real_abs_rounds, `Certcom.real_acos_rounds, `Certcom.real_asin_rounds, `Certcom.real_atan_eps, `Certcom.real_atan_rounds, `Certcom.real_cos_eps, `Certcom.real_cos_rounds, `Certcom.real_cosh_finite, `Certcom.real_cosh_rounds, `Certcom.real_exp_finite, `Certcom.real_exp_rounds, `Certcom.real_fpbridge, `Certcom.real_fpfinite, `Certcom.real_log10_rounds, `Certcom.real_log_finite, `Certcom.real_log_rounds, `Certcom.real_round_bounds, `Certcom.real_round_finite, `Certcom.real_sin_eps, `Certcom.real_sin_rounds, `Certcom.real_sinh_finite, `Certcom.real_sinh_rounds, `Certcom.real_sqrt_rounds, `Certcom.real_tan_rounds, `Certcom.real_tanh_rounds]
 
 /-- Known-unwitnessed trusted axioms + machine-readable reason. CI-visible; shrinks as witnesses
 are added. Trusted-but-unaccounted (not here, not registered, not standard/mapped) FAILS. -/
@@ -450,18 +485,34 @@ def witnessGap : List (Name × String) := []
 
 
 
+/-- The trusted names that no class in this file accounts for. -/
+def unaccountedIn (footprint : List Name) : List Name :=
+  let accounted := witnessRegistry.map Prod.fst ++ standardAxioms ++ mappedConstants ++ bridgeAxioms ++
+    witnessGap.map Prod.fst
+  footprint.filter (fun a => !(accounted.contains a))
+
 run_cmd Command.liftTermElabM do
-  let registered := witnessRegistry.map Prod.fst
-  let accounted := registered ++ standardAxioms ++ mappedConstants ++ bridgeAxioms ++ witnessGap.map Prod.fst
-  let unaccounted := trustedFootprint.filter (fun a => !(accounted.contains a))
+  let path ← ledgerPath
+  let src ← IO.FS.readFile path
+  let some trustedFootprint := listNamesIn src "trustedFootprint"
+    | throwError m!"AxiomWitnessBridge: cannot read `def trustedFootprint : List Name := [...]` in {path}"
+  -- Two controls, checked before any verdict is read. The parser keeps both names of a doctored two-name list and drops
+  -- the backticked word inside its comment; the accounting reports an injected trusted name, and only that name.
+  let parsed := listNamesIn "def trustedFootprint : List Name := [`A.b, -- `not.a.name`\n `C.d']" "trustedFootprint"
+  unless parsed == some [`A.b, `C.d'] do
+    logError m!"AxiomWitnessBridge: CONTROL FAILED: the ledger parser read {parsed} from a two-name specimen"
+  let unaccounted := unaccountedIn trustedFootprint
+  let ghost := `MachLib.Real.__witness_bridge_control
+  unless unaccountedIn (trustedFootprint ++ [ghost]) == unaccounted ++ [ghost] do
+    logError m!"AxiomWitnessBridge: CONTROL FAILED: an injected trusted name was not reported as unaccounted"
   unless unaccounted.isEmpty do
     logError m!"AxiomWitnessBridge: {unaccounted.length} trusted axiom(s) UNACCOUNTED \
 (not witnessed, not standard/mapped, not a tracked gap): {unaccounted}"
   let staleGap := (witnessGap.map Prod.fst).filter (fun a => !(trustedFootprint.contains a))
   unless staleGap.isEmpty do
     logError m!"AxiomWitnessBridge: stale witnessGap entr(y/ies) no longer trusted: {staleGap}"
-  logInfo m!"AxiomWitnessBridge coverage: {registered.length} witnessed + {standardAxioms.length} \
+  logInfo m!"AxiomWitnessBridge coverage: {witnessRegistry.length} witnessed + {standardAxioms.length} \
 standard + {mappedConstants.length} mapped + {bridgeAxioms.length} float-bridge + \
-{witnessGap.length} tracked-gap, against {trustedFootprint.length} trusted axioms."
+{witnessGap.length} tracked-gap, against {trustedFootprint.length} trusted axioms (read from {path})."
 
 end AxiomWitnessBridge
