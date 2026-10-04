@@ -93,6 +93,10 @@ def interpEntries : List (Name × TSyntax `term) := [
   (`MachLib.Real.sinh,          Unhygienic.run `(Real.sinh)),
   (`MachLib.Real.cosh,          Unhygienic.run `(Real.cosh)),
   (`MachLib.Real.tanh,          Unhygienic.run `(Real.tanh)),
+  -- `realPow` is MachLib's opaque `Real ^ Real`, read as Mathlib's `Real.rpow` (added 2026-10-04 with
+  -- machlib's owner-audit commit, so that every axiom Forge registers is witnessed)
+  (`MachLib.Real.realPow,       Unhygienic.run `((fun x y : ℝ => x ^ y))),
+  (`MachLib.Real.instHPow,      Unhygienic.run `((inferInstance : HPow ℝ ℝ ℝ))),
   -- the unit roundoff at its intended value, binary64's 2⁻⁵³ (was `0` until 2026-09-14; changed when machlib added
   -- `u_lt_one`, so that `u_nonneg`, `u_lt_one` and, later that day, `u_le_half` are all witnessed at the value the
   -- float-bridge axioms are measured at)
@@ -153,7 +157,6 @@ def witnessRegistry : List (Name × TSyntax `term) := [
   (`MachLib.Real.realOfScientific_one_dot_zero,   Unhygienic.run `(by norm_num)),
   (`MachLib.Real.realOfScientific_two_dot_zero,   Unhygienic.run `(by norm_num)),
   (`MachLib.Real.realOfScientific_three_dot_zero, Unhygienic.run `(by norm_num)),
-  (`MachLib.Real.lit_one_eq,                      Unhygienic.run `(by norm_num)),
   -- raw operations (interpreted type is just the ℝ operation's type)
   (`MachLib.Real.addR,           Unhygienic.run `((fun a b : ℝ => a + b))),
   (`MachLib.Real.mulR,           Unhygienic.run `((fun a b : ℝ => a * b))),
@@ -193,7 +196,12 @@ def witnessRegistry : List (Name × TSyntax `term) := [
   (`MachLib.Real.exp,            Unhygienic.run `(Real.exp)),
   (`MachLib.Real.exp_pos,        Unhygienic.run `(Real.exp_pos)),
   (`MachLib.Real.exp_add,        Unhygienic.run `(Real.exp_add)),
-  (`MachLib.Real.exp_zero,       Unhygienic.run `(Real.exp_zero)),
+  -- machlib's `exp_zero` was witnessed here (`Real.exp_zero`) until 2026-10-04, when it became a theorem
+  -- of `exp_add` and `exp_pos`; so were `lit_one_eq`, `one_div_nonneg_of_pos`, `tanh_lt_one` and
+  -- `neg_one_lt_tanh`. A theorem needs no witness, and the ledger no longer trusts them as axioms.
+  -- realPow (added 2026-10-04): the opaque `Real ^ Real` and the one law of it Forge's proofs use
+  (`MachLib.Real.realPow,        Unhygienic.run `((fun x y : ℝ => x ^ y))),
+  (`MachLib.Real.realPow_nonneg, Unhygienic.run `(fun {x} hx y => Real.rpow_nonneg hx y)),
   -- derivatives
   (`MachLib.Real.HasDerivAt_exp,   Unhygienic.run `(fun x => Real.hasDerivAt_exp x)),
   (`MachLib.Real.HasDerivAt_const, Unhygienic.run `(fun (c x : ℝ) => hasDerivAt_const x c)),
@@ -231,8 +239,6 @@ def witnessRegistry : List (Name × TSyntax `term) := [
   (`MachLib.Real.cosh_eq,        Unhygienic.run `(fun x => by rw [Real.cosh_eq]; norm_num)),
   (`MachLib.Real.tanh_eq_sinh_div_cosh, Unhygienic.run `(fun x => Real.tanh_eq_sinh_div_cosh x)),
   (`MachLib.Real.tanh_zero,      Unhygienic.run `(Real.tanh_zero)),
-  (`MachLib.Real.tanh_lt_one,    Unhygienic.run `(fun x => by
-    rw [Real.tanh_eq_sinh_div_cosh x, div_lt_one (Real.cosh_pos x)]; exact Real.sinh_lt_cosh x)),
   (`MachLib.Real.tanh_neg,       Unhygienic.run `(fun x => Real.tanh_neg x)),
   -- remaining certcom-footprint items: negation/congruence derivative rules, one more order
   -- law, and the abstract unit-roundoff constant `u`, witnessed at binary64's `2⁻⁵³`: since 2026-09-14 machlib
@@ -241,7 +247,6 @@ def witnessRegistry : List (Name × TSyntax `term) := [
   (`MachLib.Real.HasDerivAt_of_eq, Unhygienic.run `(fun f g a x heq hf => by
     rw [show f = g from funext heq] at hf; exact hf)),
   (`MachLib.Real.mul_lt_mul_of_pos_right, Unhygienic.run `(fun {a b c} h hc => mul_lt_mul_of_pos_right h hc)),
-  (`MachLib.Real.one_div_nonneg_of_pos, Unhygienic.run `(fun {b} hb => le_of_lt (one_div_pos.mpr hb))),
   (`MachLib.Real.u,              Unhygienic.run `(((1 : ℝ) / 2 ^ 53))),
   -- ── trig / pi / sqrt tranche (added 2026-09-02) ───────────────────────────────
   (`MachLib.Real.sin_zero,       Unhygienic.run `(Real.sin_zero)),
@@ -276,7 +281,6 @@ def witnessRegistry : List (Name × TSyntax `term) := [
   (`MachLib.Real.one_add_le_exp, Unhygienic.run `(fun x => by simpa [add_comm] using Real.add_one_le_exp x)),
   (`MachLib.Real.exp_gt_one_plus_self,
      Unhygienic.run `(fun x hx => by simpa [add_comm] using Real.add_one_lt_exp (ne_of_gt hx))),
-  (`MachLib.Real.neg_one_lt_tanh, Unhygienic.run `(Real.neg_one_lt_tanh)),
   (`MachLib.Real.sqrt_le_of_le_sq,
      Unhygienic.run `(fun {z y} hz h => by
         rw [show z = Real.sqrt (z * z) from (Real.sqrt_mul_self hz).symm]; exact Real.sqrt_le_sqrt h)),
