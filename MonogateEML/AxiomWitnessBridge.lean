@@ -233,7 +233,6 @@ def witnessRegistry : List (Name × TSyntax `term) := [
   (`MachLib.Real.sinh,           Unhygienic.run `(Real.sinh)),
   (`MachLib.Real.cosh,           Unhygienic.run `(Real.cosh)),
   (`MachLib.Real.tanh,           Unhygienic.run `(Real.tanh)),
-  (`MachLib.Real.cosh_ge_one,    Unhygienic.run `(Real.one_le_cosh)),
   (`MachLib.Real.sinh_eq,        Unhygienic.run `(fun x => by rw [Real.sinh_eq]; norm_num)),
   (`MachLib.Real.cosh_eq,        Unhygienic.run `(fun x => by rw [Real.cosh_eq]; norm_num)),
   (`MachLib.Real.tanh_eq_sinh_div_cosh, Unhygienic.run `(fun x => Real.tanh_eq_sinh_div_cosh x)),
@@ -246,12 +245,11 @@ def witnessRegistry : List (Name × TSyntax `term) := [
     rw [show f = g from funext heq] at hf; exact hf)),
   (`MachLib.Real.u,              Unhygienic.run `(((1 : ℝ) / 2 ^ 53))),
   -- ── trig / pi / sqrt tranche (added 2026-09-02) ───────────────────────────────
-  (`MachLib.Real.sin_zero,       Unhygienic.run `(Real.sin_zero)),
-  (`MachLib.Real.cos_zero,       Unhygienic.run `(Real.cos_zero)),
+  -- `sin_zero`, `cos_zero`, `sin_neg`, `cos_neg` and `sin_periodic` were witnessed here until 2026-10-05, when
+  -- machlib proved them from `pythagorean` and the addition laws (and `cosh_ge_one`, above, from `cosh_eq` and
+  -- `exp`'s laws): a theorem needs no witness.
   (`MachLib.Real.sin_pi,         Unhygienic.run `(Real.sin_pi)),
   (`MachLib.Real.cos_pi,         Unhygienic.run `(Real.cos_pi)),
-  (`MachLib.Real.sin_neg,        Unhygienic.run `(Real.sin_neg)),
-  (`MachLib.Real.cos_neg,        Unhygienic.run `(Real.cos_neg)),
   (`MachLib.Real.sin_add,        Unhygienic.run `(Real.sin_add)),
   (`MachLib.Real.cos_add,        Unhygienic.run `(Real.cos_add)),
   (`MachLib.Real.atan_zero,      Unhygienic.run `(Real.arctan_zero)),
@@ -266,7 +264,6 @@ def witnessRegistry : List (Name × TSyntax `term) := [
   (`MachLib.Real.sin_pi_div_two, Unhygienic.run `(by norm_num [Real.sin_pi_div_two])),
   (`MachLib.Real.cos_pi_div_two, Unhygienic.run `(by norm_num [Real.cos_pi_div_two])),
   (`MachLib.Real.pythagorean,    Unhygienic.run `(fun x => by simpa [sq] using Real.sin_sq_add_cos_sq x)),
-  (`MachLib.Real.sin_periodic,   Unhygienic.run `(fun x => by norm_num [Real.sin_add_two_pi])),
   (`MachLib.Real.HasDerivAt_atan, Unhygienic.run `(fun x => by simpa [sq] using Real.hasDerivAt_arctan x)),
   (`MachLib.Real.sqrt_sq_nonneg, Unhygienic.run `(fun x hx => Real.mul_self_sqrt hx)),
   (`MachLib.Real.tan_def,        Unhygienic.run `(fun x _ => Real.tan_eq_sin_div_cos x)),
