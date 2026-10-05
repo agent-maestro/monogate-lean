@@ -135,28 +135,32 @@ def interpEntries : List (Name × TSyntax `term) := [
   (`MachLib.Real.instOfScientific, Unhygienic.run `((inferInstance : OfScientific ℝ))),
   (`MachLib.IsAnalyticOnReals,  Unhygienic.run `((fun (f : ℝ → ℝ) (S : Set ℝ) => AnalyticOnNhd ℝ f S))) ]
 
+/-- The interpretation `natCast ↦ Nat.cast` agrees with MachLib's DEFINITION of `natCast` (since 2026-10-04 a
+recursion, `0` and `+ 1`, no longer an axiomatised function): `Nat.cast` satisfies the same two equations. -/
+theorem interp_agrees_natCast (n : ℕ) :
+    ((0 : ℕ) : ℝ) = 0 ∧ (((n + 1 : ℕ) : ℝ) = (n : ℝ) + 1) := ⟨Nat.cast_zero, by push_cast; ring⟩
+
+/-- The interpretation of `realOfScientific` agrees with MachLib's DEFINITION (`natCast m / natCast (10^e)`
+when `s`, `natCast m * natCast (10^e)` otherwise), with `natCast ↦ Nat.cast`. -/
+theorem interp_agrees_realOfScientific (m e : ℕ) (s : Bool) :
+    cond s ((m : ℝ) / 10 ^ e) ((m : ℝ) * 10 ^ e)
+      = if s then ((m : ℕ) : ℝ) / ((10 ^ e : ℕ) : ℝ) else ((m : ℕ) : ℝ) * ((10 ^ e : ℕ) : ℝ) := by
+  cases s <;> simp [Nat.cast_pow]
+
 /-- Witness registry: MachLib axiom ↦ a Mathlib term claimed to inhabit its interpreted type.
 The claim is CHECKED (not trusted): a wrong entry fails the gate. -/
 def witnessRegistry : List (Name × TSyntax `term) := [
-  -- The decimal-literal family. Outside the trusted footprint until 2026-09-11 and therefore
-  -- unclassified, while every Forge certificate containing a literal like `100.0` depended on it:
-  -- MachLib's own theorems use 0, 1 and constructed constants, so its trust machinery -- indexed on
-  -- MachLib's theorems -- never met these. Found by reading a generated certificate's footprint.
-  (`MachLib.Real.realOfScientific, Unhygienic.run `((fun (m : ℕ) (s : Bool) (e : ℕ) =>
-     cond s ((m : ℝ) / 10 ^ e) ((m : ℝ) * 10 ^ e)))),
-  (`MachLib.Real.realOfScientific_clears, Unhygienic.run `(fun m e => by
-     show (m : ℝ) / 10 ^ e * ((10 ^ e : ℕ) : ℝ) = ((m : ℕ) : ℝ)
-     rw [Nat.cast_pow]; push_cast; field_simp)),
-  (`MachLib.Real.realOfScientific_pos, Unhygienic.run `(fun m s e hm => by
-     have hm' : (0 : ℝ) < (m : ℝ) := by exact_mod_cast hm
-     cases s
-     · show (0:ℝ) < (m : ℝ) * 10 ^ e
-       positivity
-     · show (0:ℝ) < (m : ℝ) / 10 ^ e
-       positivity)),
-  (`MachLib.Real.realOfScientific_one_dot_zero,   Unhygienic.run `(by norm_num)),
-  (`MachLib.Real.realOfScientific_two_dot_zero,   Unhygienic.run `(by norm_num)),
-  (`MachLib.Real.realOfScientific_three_dot_zero, Unhygienic.run `(by norm_num)),
+  -- RETIRED 2026-10-04 (the muses' E round, "provable means proved"): 23 MachLib axioms became theorems
+  -- or definitions -- archimedean, one_div_pos_of_pos, HasDerivAt_neg/sub, mul_lt_mul_of_pos_right,
+  -- div_lt_one_of_pos_lt, lit_zero_eq, exp_pos, cosh_pos, pi_pos, pi_gt_one, pi_gt_three (all from
+  -- pi_lower_bound, witnessed below now), and natCast and realOfScientific with the ten axioms that said
+  -- what they return. A theorem needs no witness. The two DEFINITIONS keep their interpretation in
+  -- `interpEntries` (a translation still meets them), and `interp_agrees_*` above CHECKS each one against
+  -- its definition rather than taking it on trust.
+  -- The decimal-literal family was witnessed here from 2026-09-11 (before that it sat outside the trusted
+  -- footprint, unclassified, while every Forge certificate containing a literal like `100.0` depended on it)
+  -- until 2026-10-04, when `realOfScientific` became a definition and its seven axioms theorems of it; its
+  -- interpretation stays in `interpEntries`, checked by `interp_agrees_realOfScientific` above.
   -- raw operations (interpreted type is just the ℝ operation's type)
   (`MachLib.Real.addR,           Unhygienic.run `((fun a b : ℝ => a + b))),
   (`MachLib.Real.mulR,           Unhygienic.run `((fun a b : ℝ => a * b))),
@@ -167,7 +171,6 @@ def witnessRegistry : List (Name × TSyntax `term) := [
   (`MachLib.Real.oneR,           Unhygienic.run `((1 : ℝ))),
   (`MachLib.Real.ltR,            Unhygienic.run `((fun a b : ℝ => a < b))),
   (`MachLib.Real.leR,            Unhygienic.run `((fun a b : ℝ => a ≤ b))),
-  (`MachLib.Real.natCast,        Unhygienic.run `((Nat.cast : ℕ → ℝ))),
   -- field / order laws
   (`MachLib.Real.add_comm,       Unhygienic.run `(add_comm)),
   (`MachLib.Real.add_assoc,      Unhygienic.run `(add_assoc)),
@@ -185,16 +188,15 @@ def witnessRegistry : List (Name × TSyntax `term) := [
   (`MachLib.Real.lt_trans_ax,    Unhygienic.run `(fun {a b c} => lt_trans)),
   (`MachLib.Real.le_iff_lt_or_eq, Unhygienic.run `(fun {a b} => le_iff_lt_or_eq)),
   (`MachLib.Real.zero_lt_one_ax, Unhygienic.run `(zero_lt_one)),
+  -- `zero_ne_one_ax` stays an AXIOM (2026-10-04): derivable from the ORDER, primitive for the FIELD -- the
+  -- algebra spine machlib holds to the field axioms alone took the order into 33 theorems when it was converted.
   (`MachLib.Real.zero_ne_one_ax, Unhygienic.run `(zero_ne_one)),
   (`MachLib.Real.lt_total,       Unhygienic.run `(lt_trichotomy)),
   (`MachLib.Real.mul_inv,        Unhygienic.run `(fun a ha => mul_one_div_cancel ha)),
   (`MachLib.Real.sub_def,        Unhygienic.run `(sub_eq_add_neg)),
   (`MachLib.Real.div_def,        Unhygienic.run `(fun a b _ => div_eq_mul_one_div a b)),
-  (`MachLib.Real.natCast_zero,   Unhygienic.run `(Nat.cast_zero)),
-  (`MachLib.Real.one_div_pos_of_pos, Unhygienic.run `(fun {a} => one_div_pos.mpr)),
   -- exp
   (`MachLib.Real.exp,            Unhygienic.run `(Real.exp)),
-  (`MachLib.Real.exp_pos,        Unhygienic.run `(Real.exp_pos)),
   (`MachLib.Real.exp_add,        Unhygienic.run `(Real.exp_add)),
   -- machlib's `exp_zero` was witnessed here (`Real.exp_zero`) until 2026-10-04, when it became a theorem
   -- of `exp_add` and `exp_pos`; so were `lit_one_eq`, `one_div_nonneg_of_pos`, `tanh_lt_one` and
@@ -207,12 +209,10 @@ def witnessRegistry : List (Name × TSyntax `term) := [
   (`MachLib.Real.HasDerivAt_const, Unhygienic.run `(fun (c x : ℝ) => hasDerivAt_const x c)),
   (`MachLib.Real.HasDerivAt_id,    Unhygienic.run `(fun x => hasDerivAt_id x)),
   (`MachLib.Real.HasDerivAt_add,   Unhygienic.run `(fun {f g f' g' x} hf hg => HasDerivAt.add hf hg)),
-  (`MachLib.Real.HasDerivAt_sub,   Unhygienic.run `(fun {f g f' g' x} hf hg => HasDerivAt.sub hf hg)),
   (`MachLib.Real.HasDerivAt_mul,   Unhygienic.run `(fun {f g f' g' x} hf hg => HasDerivAt.mul hf hg)),
   (`MachLib.Real.HasDerivAt_unique, Unhygienic.run `(fun {f f₀ f₁ x} h₀ h₁ => HasDerivAt.unique h₀ h₁)),
   (`MachLib.Real.rolle_ct,       Unhygienic.run `(MonogateEML.RealModel.rolle_witnessed)),
   -- remaining derivatives + casts
-  (`MachLib.Real.natCast_succ,   Unhygienic.run `(fun n => by push_cast; ring)),
   (`MachLib.Real.exp_surj,       Unhygienic.run `(fun y hy => ⟨Real.log y, Real.exp_log hy⟩)),
   (`MachLib.Real.HasDerivAt_log_pos, Unhygienic.run `(fun x hx => by simpa [one_div] using Real.hasDerivAt_log (ne_of_gt hx))),
   (`MachLib.Real.HasDerivAt_comp, Unhygienic.run `(fun f g a b x hg hf => HasDerivAt.comp x hf hg)),
@@ -233,7 +233,6 @@ def witnessRegistry : List (Name × TSyntax `term) := [
   (`MachLib.Real.sinh,           Unhygienic.run `(Real.sinh)),
   (`MachLib.Real.cosh,           Unhygienic.run `(Real.cosh)),
   (`MachLib.Real.tanh,           Unhygienic.run `(Real.tanh)),
-  (`MachLib.Real.cosh_pos,       Unhygienic.run `(Real.cosh_pos)),
   (`MachLib.Real.cosh_ge_one,    Unhygienic.run `(Real.one_le_cosh)),
   (`MachLib.Real.sinh_eq,        Unhygienic.run `(fun x => by rw [Real.sinh_eq]; norm_num)),
   (`MachLib.Real.cosh_eq,        Unhygienic.run `(fun x => by rw [Real.cosh_eq]; norm_num)),
@@ -243,10 +242,8 @@ def witnessRegistry : List (Name × TSyntax `term) := [
   -- remaining certcom-footprint items: negation/congruence derivative rules, one more order
   -- law, and the abstract unit-roundoff constant `u`, witnessed at binary64's `2⁻⁵³`: since 2026-09-14 machlib
   -- constrains it by `u_nonneg`, `u_lt_one` and `u_le_half`, and `2⁻⁵³` is the value all three are meant to hold at
-  (`MachLib.Real.HasDerivAt_neg,   Unhygienic.run `(fun f a x hf => hf.neg)),
   (`MachLib.Real.HasDerivAt_of_eq, Unhygienic.run `(fun f g a x heq hf => by
     rw [show f = g from funext heq] at hf; exact hf)),
-  (`MachLib.Real.mul_lt_mul_of_pos_right, Unhygienic.run `(fun {a b c} h hc => mul_lt_mul_of_pos_right h hc)),
   (`MachLib.Real.u,              Unhygienic.run `(((1 : ℝ) / 2 ^ 53))),
   -- ── trig / pi / sqrt tranche (added 2026-09-02) ───────────────────────────────
   (`MachLib.Real.sin_zero,       Unhygienic.run `(Real.sin_zero)),
@@ -257,14 +254,15 @@ def witnessRegistry : List (Name × TSyntax `term) := [
   (`MachLib.Real.cos_neg,        Unhygienic.run `(Real.cos_neg)),
   (`MachLib.Real.sin_add,        Unhygienic.run `(Real.sin_add)),
   (`MachLib.Real.cos_add,        Unhygienic.run `(Real.cos_add)),
-  (`MachLib.Real.pi_pos,         Unhygienic.run `(Real.pi_pos)),
   (`MachLib.Real.atan_zero,      Unhygienic.run `(Real.arctan_zero)),
   (`MachLib.Real.sqrt_nonneg,    Unhygienic.run `(Real.sqrt_nonneg)),
   (`MachLib.Real.HasDerivAt_sin, Unhygienic.run `(Real.hasDerivAt_sin)),
   (`MachLib.Real.HasDerivAt_cos, Unhygienic.run `(Real.hasDerivAt_cos)),
   -- MachLib writes `1 + 1` where Mathlib writes `2`, and `x * x` where Mathlib writes `x ^ 2`;
   -- these witnesses close exactly that gap and nothing else.
-  (`MachLib.Real.pi_gt_one,      Unhygienic.run `(by linarith [Real.pi_gt_three])),
+  -- `pi_lower_bound` (3.141592 < π) is TRUSTED since 2026-10-04: `pi_pos`, `pi_gt_one` and `pi_gt_three` are
+  -- machlib theorems of it now, so the headlines that rested on them rest on it.
+  (`MachLib.Real.pi_lower_bound, Unhygienic.run `(by have h := Real.pi_gt_d6; norm_num at h ⊢; linarith)),
   (`MachLib.Real.sin_pi_div_two, Unhygienic.run `(by norm_num [Real.sin_pi_div_two])),
   (`MachLib.Real.cos_pi_div_two, Unhygienic.run `(by norm_num [Real.cos_pi_div_two])),
   (`MachLib.Real.pythagorean,    Unhygienic.run `(fun x => by simpa [sq] using Real.sin_sq_add_cos_sq x)),
@@ -275,7 +273,6 @@ def witnessRegistry : List (Name × TSyntax `term) := [
   (`MachLib.Real.sin_one_pos,    Unhygienic.run `(Real.sin_pos_of_pos_of_lt_pi one_pos (by linarith [Real.pi_gt_three]))),
   (`MachLib.Real.sin_pos_of_pos_lt_pi_div_two,
      Unhygienic.run `(fun x h0 hp => Real.sin_pos_of_pos_of_lt_pi h0 (by nlinarith [Real.pi_pos]))),
-  (`MachLib.Real.archimedean,    Unhygienic.run `(fun x => exists_nat_gt x)),
   (`MachLib.Real.div_zero,       Unhygienic.run `(div_zero)),
   (`MachLib.Real.exp_lt,         Unhygienic.run `(fun h => Real.exp_lt_exp.mpr h)),
   (`MachLib.Real.one_add_le_exp, Unhygienic.run `(fun x => by simpa [add_comm] using Real.add_one_le_exp x)),
