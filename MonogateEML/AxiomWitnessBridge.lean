@@ -236,7 +236,6 @@ def witnessRegistry : List (Name × TSyntax `term) := [
   (`MachLib.Real.sinh_eq,        Unhygienic.run `(fun x => by rw [Real.sinh_eq]; norm_num)),
   (`MachLib.Real.cosh_eq,        Unhygienic.run `(fun x => by rw [Real.cosh_eq]; norm_num)),
   (`MachLib.Real.tanh_eq_sinh_div_cosh, Unhygienic.run `(fun x => Real.tanh_eq_sinh_div_cosh x)),
-  (`MachLib.Real.tanh_zero,      Unhygienic.run `(Real.tanh_zero)),
   (`MachLib.Real.tanh_neg,       Unhygienic.run `(fun x => Real.tanh_neg x)),
   -- remaining certcom-footprint items: negation/congruence derivative rules, one more order
   -- law, and the abstract unit-roundoff constant `u`, witnessed at binary64's `2⁻⁵³`: since 2026-09-14 machlib
