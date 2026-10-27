@@ -14,6 +14,7 @@ import Mathlib.Analysis.Real.Pi.Bounds
 import MonogateEML.MachLibRealModelRolle
 import MonogateEML.MachLibRealModelLog
 import MonogateEML.MachLibRealModelHyperbolic
+import MonogateEML.MachLibRealModelBivariate
 
 /-!
 # Axiom-witness bridge — verbatim, kernel-checked `MachLib.Real ⊨ ℝ`
@@ -133,7 +134,14 @@ def interpEntries : List (Name × TSyntax `term) := [
   (`MachLib.Real.realOfScientific, Unhygienic.run `((fun (m : ℕ) (s : Bool) (e : ℕ) =>
      cond s ((m : ℝ) / 10 ^ e) ((m : ℝ) * 10 ^ e)))),
   (`MachLib.Real.instOfScientific, Unhygienic.run `((inferInstance : OfScientific ℝ))),
-  (`MachLib.IsAnalyticOnReals,  Unhygienic.run `((fun (f : ℝ → ℝ) (S : Set ℝ) => AnalyticOnNhd ℝ f S))) ]
+  (`MachLib.IsAnalyticOnReals,  Unhygienic.run `((fun (f : ℝ → ℝ) (S : Set ℝ) => AnalyticOnNhd ℝ f S))),
+  -- Bivariate derivatives (machlib `BivariateDeriv.lean`, added here 2026-10-27): `HasDerivAt2 f fx fy x y` is Fréchet
+  -- differentiability of `(a, b) ↦ f a b` at `(x, y)` with derivative `fx • fst + fy • snd`
+  -- (`MachLibRealModelBivariate.HasDerivAt2R`), the reading machlib's docstring gives it.
+  (`MachLib.Real.HasDerivAt2,   Unhygienic.run `(MonogateEML.RealModel.HasDerivAt2R)),
+  -- `floor` (machlib `Forge.lean`, added here 2026-10-27) is collapsed to `Real → Real` there; Mathlib's `Int.floor`,
+  -- cast back to `ℝ`, is the function its three laws describe.
+  (`MachLib.Real.floor,         Unhygienic.run `((fun x : ℝ => ((Int.floor x : ℤ) : ℝ)))) ]
 
 /-- The interpretation `natCast ↦ Nat.cast` agrees with MachLib's DEFINITION of `natCast` (since 2026-10-04 a
 recursion, `0` and `+ 1`, no longer an axiomatised function): `Nat.cast` satisfies the same two equations. -/
@@ -360,7 +368,25 @@ def witnessRegistry : List (Name × TSyntax `term) := [
   -- machlib `u_le_half` (2026-09-14): `u + u ≤ 1`, at the same interpretation `u ↦ 1 / 2⁵³`
   (`MachLib.Real.u_le_half,      Unhygienic.run `((by norm_num : (1 : ℝ) / 2 ^ 53 + 1 / 2 ^ 53 ≤ 1))),
   -- machlib `u_le_inv_two_pow_52` (2026-09-14): `u ≤ 1 / natCast (2 ^ 52)`, at the same interpretation `u ↦ 1 / 2⁵³`
-  (`MachLib.Real.u_le_inv_two_pow_52, Unhygienic.run `((by norm_num : (1 : ℝ) / 2 ^ 53 ≤ 1 / ((2 ^ 52 : ℕ) : ℝ)))) ]
+  (`MachLib.Real.u_le_inv_two_pow_52, Unhygienic.run `((by norm_num : (1 : ℝ) / 2 ^ 53 ≤ 1 / ((2 ^ 52 : ℕ) : ℝ)))),
+  -- ── bivariate derivatives, the implicit-function derivative and `floor` (2026-10-27) ────────────────────
+  -- None of these is in machlib's `trustedFootprint` yet; the witnesses come first, the trust decision after.
+  -- machlib restated `hasDerivAt_implicit` and `hasDerivAt_implicit_local` the same day with `ContinuousAt yc x`:
+  -- the old statements had no witness because they were false, and `old_implicit_statement_false` proves it here.
+  (`MachLib.Real.HasDerivAt2_projX, Unhygienic.run `(MonogateEML.RealModel.hasDerivAt2_projX)),
+  (`MachLib.Real.HasDerivAt2_projY, Unhygienic.run `(MonogateEML.RealModel.hasDerivAt2_projY)),
+  (`MachLib.Real.HasDerivAt2_const, Unhygienic.run `(MonogateEML.RealModel.hasDerivAt2_const)),
+  (`MachLib.Real.HasDerivAt2_add,   Unhygienic.run `(MonogateEML.RealModel.hasDerivAt2_add)),
+  (`MachLib.Real.HasDerivAt2_sub,   Unhygienic.run `(MonogateEML.RealModel.hasDerivAt2_sub)),
+  (`MachLib.Real.HasDerivAt2_mul,   Unhygienic.run `(MonogateEML.RealModel.hasDerivAt2_mul)),
+  (`MachLib.Real.HasDerivAt2_scomp, Unhygienic.run `(MonogateEML.RealModel.hasDerivAt2_scomp)),
+  (`MachLib.Real.HasDerivAt2_comp,  Unhygienic.run `(MonogateEML.RealModel.hasDerivAt2_comp)),
+  (`MachLib.Real.hasDerivAt_implicit, Unhygienic.run `(MonogateEML.RealModel.hasDerivAt_implicit_witness)),
+  (`MachLib.Real.hasDerivAt_implicit_local,
+     Unhygienic.run `(MonogateEML.RealModel.hasDerivAt_implicit_local_witness)),
+  (`MachLib.Real.floor_le,          Unhygienic.run `(MonogateEML.RealModel.floor_le_witness)),
+  (`MachLib.Real.lt_floor_add_one,  Unhygienic.run `(MonogateEML.RealModel.lt_floor_add_one_witness)),
+  (`MachLib.Real.floor_zero,        Unhygienic.run `(MonogateEML.RealModel.floor_zero_witness)) ]
 
 def mkMap : TermElabM (List (Name × Expr)) :=
   interpEntries.mapM (fun (n, s) => do return (n, ← elabTerm s none))
@@ -447,6 +473,8 @@ def standardAxioms : List Name := [`propext, `Classical.choice, `Quot.sound]
 /-- Carrier/predicate constants — interpretation-map entries (`Real ↦ ℝ`, `HasDerivAt` /
 `IsAnalyticOnReals ↦` Mathlib's), not propositions to witness. -/
 def mappedConstants : List Name := [`MachLib.Real, `MachLib.Real.HasDerivAt, `MachLib.IsAnalyticOnReals,
+  -- 2026-10-27: the bivariate derivative predicate and `floor` (interpreted in `interpEntries`)
+  `MachLib.Real.HasDerivAt2, `MachLib.Real.floor,
   -- function symbols: interpreted in `interpEntries`, not propositions to witness
   `MachLib.Real.sin, `MachLib.Real.cos, `MachLib.Real.tan, `MachLib.Real.pi, `MachLib.Real.sqrt,
   `MachLib.Real.atan, `MachLib.Real.arcsin, `MachLib.Real.arccos, `MachLib.Real.log10]
