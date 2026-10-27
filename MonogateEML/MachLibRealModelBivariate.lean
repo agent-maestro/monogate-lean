@@ -8,7 +8,7 @@ import Mathlib.Algebra.Order.Floor.Ring
 /-!
 # `MachLib.Real` soundness witnesses: bivariate derivatives, the implicit-function derivative, `floor`
 
-machlib's `BivariateDeriv.lean` axiomatises an opaque `HasDerivAt2 f fx fy x y` with eight rules and the
+machlib's `BivariateDeriv.lean` axiomatises an opaque `HasDerivAt2 f fx fy x y` with its rules and the
 implicit-function derivative; `Forge.lean` axiomatises `floor` with three laws. None had a Mathlib witness. This
 file reads them as
 
@@ -17,6 +17,9 @@ file reads them as
 * `floor` ↦ `x ↦ (⌊x⌋ : ℝ)`, Mathlib's `Int.floor` cast back to `ℝ`,
 
 and proves each axiom at that reading. `AxiomWitnessBridge` checks every one against the axiom's interpreted type.
+Two statements first witnessed here are no longer axioms in machlib: the rule `HasDerivAt2_sub` and the global
+`hasDerivAt_implicit` became theorems on 2026-10-27. The global form's witness is deleted; `hasDerivAt2_sub` is kept
+only because `old_implicit_statement_false` uses it.
 
 **The implicit-function axiom was false until machlib restated it on 2026-10-27**, and this file keeps the proof:
 `old_implicit_statement_false` refutes the old statement in Mathlib's `ℝ`, independently of the refutation machlib
@@ -50,7 +53,7 @@ theorem clm2_ext {L M : ℝ × ℝ →L[ℝ] ℝ} (h1 : L (1, 0) = M (1, 0)) (h2
     (fx • ContinuousLinearMap.fst ℝ ℝ ℝ + fy • ContinuousLinearMap.snd ℝ ℝ ℝ) (u, v) = fx * u + fy * v := by
   simp [smul_eq_mul]
 
-/-! ## The eight `HasDerivAt2` rules -/
+/-! ## The `HasDerivAt2` rules -/
 
 theorem hasDerivAt2_projX (x y : ℝ) : HasDerivAt2R (fun a _ => a) 1 0 x y := by
   have h : (1 : ℝ) • ContinuousLinearMap.fst ℝ ℝ ℝ + (0 : ℝ) • ContinuousLinearMap.snd ℝ ℝ ℝ
@@ -184,16 +187,6 @@ theorem continuousAt_of_eps_delta {g : ℝ → ℝ} {x : ℝ}
     obtain ⟨δ, hδ, H⟩ := h ε hε
     exact ⟨δ, hδ, fun {y} hy => by
       simpa [Real.dist_eq] using H y (by simpa [Real.dist_eq] using hy)⟩
-
-/-- **The witness of the restated `hasDerivAt_implicit`.** -/
-theorem hasDerivAt_implicit_witness (f : ℝ → ℝ → ℝ) (fx fy : ℝ) (yc : ℝ → ℝ) (x : ℝ) :
-    HasDerivAt2R f fx fy x (yc x) → fy ≠ 0 →
-    (∀ ε : ℝ, 0 < ε → ∃ δ : ℝ, 0 < δ ∧ ∀ y : ℝ, |y - x| < δ → |yc y - yc x| < ε) →
-    (∀ s : ℝ, f s (yc s) = 0) → HasDerivAt yc (-fx / fy) x := by
-  intro h2 hfy hc hid
-  have h := implicit_deriv_core (F := fun p : ℝ × ℝ => f p.1 p.2) h2 (by simpa using hfy)
-    (continuousAt_of_eps_delta hc) (Eventually.of_forall fun s => hid s)
-  simpa using h
 
 /-- **The witness of the restated `hasDerivAt_implicit_local`.** -/
 theorem hasDerivAt_implicit_local_witness (f : ℝ → ℝ → ℝ) (fx fy : ℝ) (yc : ℝ → ℝ) (x p q : ℝ)

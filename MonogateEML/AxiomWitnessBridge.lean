@@ -370,18 +370,18 @@ def witnessRegistry : List (Name × TSyntax `term) := [
   -- machlib `u_le_inv_two_pow_52` (2026-09-14): `u ≤ 1 / natCast (2 ^ 52)`, at the same interpretation `u ↦ 1 / 2⁵³`
   (`MachLib.Real.u_le_inv_two_pow_52, Unhygienic.run `((by norm_num : (1 : ℝ) / 2 ^ 53 ≤ 1 / ((2 ^ 52 : ℕ) : ℝ)))),
   -- ── bivariate derivatives, the implicit-function derivative and `floor` (2026-10-27) ────────────────────
-  -- None of these is in machlib's `trustedFootprint` yet; the witnesses come first, the trust decision after.
-  -- machlib restated `hasDerivAt_implicit` and `hasDerivAt_implicit_local` the same day with `ContinuousAt yc x`:
-  -- the old statements had no witness because they were false, and `old_implicit_statement_false` proves it here.
+  -- Witnessed before the owner admitted them to machlib's `trustedFootprint` the same day. machlib restated
+  -- `hasDerivAt_implicit_local` (and the global form, a theorem of it since) with `ContinuousAt yc x`: the old
+  -- statements had no witness because they were false, and `old_implicit_statement_false` proves it here.
+  -- `HasDerivAt2_sub` and the global `hasDerivAt_implicit` were witnessed here briefly and retired the same day, when
+  -- machlib proved them from the other rules (a theorem needs no witness); their Mathlib lemmas stay where used.
   (`MachLib.Real.HasDerivAt2_projX, Unhygienic.run `(MonogateEML.RealModel.hasDerivAt2_projX)),
   (`MachLib.Real.HasDerivAt2_projY, Unhygienic.run `(MonogateEML.RealModel.hasDerivAt2_projY)),
   (`MachLib.Real.HasDerivAt2_const, Unhygienic.run `(MonogateEML.RealModel.hasDerivAt2_const)),
   (`MachLib.Real.HasDerivAt2_add,   Unhygienic.run `(MonogateEML.RealModel.hasDerivAt2_add)),
-  (`MachLib.Real.HasDerivAt2_sub,   Unhygienic.run `(MonogateEML.RealModel.hasDerivAt2_sub)),
   (`MachLib.Real.HasDerivAt2_mul,   Unhygienic.run `(MonogateEML.RealModel.hasDerivAt2_mul)),
   (`MachLib.Real.HasDerivAt2_scomp, Unhygienic.run `(MonogateEML.RealModel.hasDerivAt2_scomp)),
   (`MachLib.Real.HasDerivAt2_comp,  Unhygienic.run `(MonogateEML.RealModel.hasDerivAt2_comp)),
-  (`MachLib.Real.hasDerivAt_implicit, Unhygienic.run `(MonogateEML.RealModel.hasDerivAt_implicit_witness)),
   (`MachLib.Real.hasDerivAt_implicit_local,
      Unhygienic.run `(MonogateEML.RealModel.hasDerivAt_implicit_local_witness)),
   (`MachLib.Real.floor_le,          Unhygienic.run `(MonogateEML.RealModel.floor_le_witness)),
